@@ -81,10 +81,9 @@ You'll likely get a root permission popup here too if it's the installer's first
 ### 4. Reboot to test
 
 ```bash
-exit
-env reboot
+su -c reboot
 ```
-(or restart the phone normally through the power button menu)
+(a plain `reboot` won't work — rebooting needs root privilege)
 
 Wait about **2–3 minutes** after the phone finishes booting — don't touch data/hotspot settings manually during this time, so you get a clean test.
 
