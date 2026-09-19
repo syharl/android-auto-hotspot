@@ -38,7 +38,7 @@ If it worked, your prompt changes from `$` to `#`. Type `exit` to leave the root
 **Option A — using `git` (recommended):**
 ```bash
 pkg install git
-git clone https://github.com/YOUR-USERNAME/android-auto-hotspot.git
+git clone https://github.com/syharl/android-auto-hotspot.git
 cd android-auto-hotspot
 ```
 
