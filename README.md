@@ -81,7 +81,8 @@ You'll likely get a root permission popup here too if it's the installer's first
 ### 4. Reboot to test
 
 ```bash
-reboot
+exit
+env reboot
 ```
 (or restart the phone normally through the power button menu)
 
