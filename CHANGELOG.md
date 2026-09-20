@@ -1,15 +1,18 @@
 # Changelog
 
 ## Unreleased
-### Added
-- Status notification with an interactive **"Restart Hotspot"** button (via Termux:API), sent after boot and whenever the watchdog auto-restarts the hotspot. Silently disabled if Termux:API isn't installed. (`scripts/notify-status.sh`, `scripts/restart-hotspot.sh`)
-- **Scheduled off/on** — optionally turn the hotspot off at one hour and back on at another, every day. Configured during `install.sh`. (`scripts/hotspot-scheduler.sh`)
-
 ### Planned next
 - Multi-SSID / dual-band (2.4GHz + 5GHz) softAp support
 - Telegram/webhook notifications for hotspot state changes
 - Per-client data cap (cut off one connected device after N data used, others unaffected)
 - Per-client speed limit (experimental — device/kernel dependent)
+
+## v0.3
+### Added
+- Status notification with an interactive **"Restart Hotspot"** button (via Termux:API), sent after boot and whenever the watchdog auto-restarts the hotspot. Silently disabled if Termux:API isn't installed. (`scripts/notify-status.sh`, `scripts/restart-hotspot.sh`)
+- **Scheduled off/on** — optionally turn the hotspot off at one hour and back on at another, every day. Configured during `install.sh`. (`scripts/hotspot-scheduler.sh`)
+### Fixed
+- `notify-status.sh` now explicitly exports `HOME`/`PREFIX`/`TMPDIR`/`LD_LIBRARY_PATH` before calling `termux-notification`. Without these, the call reached Termux:API but failed with `Error in ResultReturner`, since the script runs from a root/Magisk context with none of Termux's own environment inherited.
 
 ## v0.2
 ### Added
