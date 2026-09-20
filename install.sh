@@ -15,9 +15,15 @@ set -e
 SCRIPT_DIR="$(dirname "$0")"
 SRC_MAIN="$SCRIPT_DIR/scripts/autostart-network.sh"
 SRC_WATCHDOG="$SCRIPT_DIR/scripts/hotspot-watchdog.sh"
+SRC_SCHEDULER="$SCRIPT_DIR/scripts/hotspot-scheduler.sh"
+SRC_NOTIFY="$SCRIPT_DIR/scripts/notify-status.sh"
+SRC_RESTART="$SCRIPT_DIR/scripts/restart-hotspot.sh"
 DEST_DIR="/data/adb/service.d"
 DEST_MAIN="$DEST_DIR/autostart-network.sh"
 DEST_WATCHDOG="$DEST_DIR/hotspot-watchdog.sh"
+DEST_SCHEDULER="$DEST_DIR/hotspot-scheduler.sh"
+DEST_NOTIFY="$DEST_DIR/notify-status.sh"
+DEST_RESTART="$DEST_DIR/restart-hotspot.sh"
 DEST_CONFIG="$DEST_DIR/hotspot-config.sh"
 
 if [ ! -f "$SRC_MAIN" ]; then
@@ -33,6 +39,12 @@ read -p "Security [wpa2/wpa3/open] (default: wpa2): " SECURITY
 SECURITY=${SECURITY:-wpa2}
 echo
 read -p "Auto-restart hotspot if it turns itself off from idle timeout? [y/N] " WANT_WATCHDOG
+echo
+read -p "Schedule automatic off/on at fixed hours each day? [y/N] " WANT_SCHEDULE
+if [ "$WANT_SCHEDULE" = "y" ] || [ "$WANT_SCHEDULE" = "Y" ]; then
+    read -p "  Turn OFF at hour (0-23): " OFF_HOUR
+    read -p "  Turn back ON at hour (0-23): " ON_HOUR
+fi
 
 echo
 echo "[*] This will copy files into $DEST_DIR (needs root)."
@@ -51,14 +63,24 @@ SSID="$SSID"
 PASSWORD="$PASSWORD"
 SECURITY="$SECURITY"
 EOF
+if [ "$WANT_SCHEDULE" = "y" ] || [ "$WANT_SCHEDULE" = "Y" ]; then
+    {
+        echo "OFF_HOUR=$OFF_HOUR"
+        echo "ON_HOUR=$ON_HOUR"
+    } >> "$CONFIG_TMP"
+fi
 cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
 rm -f "$CONFIG_TMP"
 su -c "chmod 700 $DEST_CONFIG"
 echo "[*] Wrote $DEST_CONFIG"
 
-# --- install main autostart script ---
+# --- install main autostart script + always-safe helpers ---
 cat "$SRC_MAIN" | su -c "cat > $DEST_MAIN"
 su -c "chmod 700 $DEST_MAIN"
+cat "$SRC_NOTIFY" | su -c "cat > $DEST_NOTIFY"
+su -c "chmod 700 $DEST_NOTIFY"
+cat "$SRC_RESTART" | su -c "cat > $DEST_RESTART"
+su -c "chmod 700 $DEST_RESTART"
 echo "[*] Installed $DEST_MAIN"
 
 # --- install or remove the watchdog ---
@@ -73,6 +95,19 @@ if [ "$WANT_WATCHDOG" = "y" ] || [ "$WANT_WATCHDOG" = "Y" ]; then
 else
     su -c "rm -f $DEST_WATCHDOG" 2>/dev/null || true
     echo "[*] Watchdog not enabled (removed if previously installed)."
+fi
+
+# --- install or remove the scheduler ---
+if [ "$WANT_SCHEDULE" = "y" ] || [ "$WANT_SCHEDULE" = "Y" ]; then
+    if [ ! -f "$SRC_SCHEDULER" ]; then
+        echo "[!] scripts/hotspot-scheduler.sh not found — skipping scheduler install."
+    else
+        cat "$SRC_SCHEDULER" | su -c "cat > $DEST_SCHEDULER"
+        su -c "chmod 700 $DEST_SCHEDULER"
+        echo "[*] Installed $DEST_SCHEDULER (off at $OFF_HOUR:00, on at $ON_HOUR:00 daily)"
+    fi
+else
+    su -c "rm -f $DEST_SCHEDULER" 2>/dev/null || true
 fi
 
 echo

@@ -62,6 +62,7 @@ No editing required — the installer asks you for everything interactively:
 - **SSID** and **Password** (the same hotspot you already set up once in Android's Settings).
 - **Security** type: `wpa2`, `wpa3`, or `open` (defaults to `wpa2` if you just press Enter).
 - Whether to enable the **watchdog** (auto-restart the hotspot if it turns itself off from idle — see [Optional: auto-restart watchdog](#optional-auto-restart-watchdog) below).
+- Whether to **schedule** automatic off/on at fixed hours — see [Optional: scheduled off/on](#optional-scheduled-offon) below.
 
 It then asks you to confirm before touching anything (type `y` and Enter), and uses `su` to:
 - Write your answers to `/data/adb/service.d/hotspot-config.sh` (kept separate from the scripts, `chmod 700` so only root can read it).
@@ -107,6 +108,25 @@ Many Android versions auto-disable the hotspot after a few minutes with no conne
 - If you turned it off **yourself** (Settings or the quick-settings tile), no matching idle-timeout message is found, so the watchdog leaves it off.
 
 This detection is a best-effort heuristic — the exact log wording can differ by ROM/Android version. If it restarts the hotspot when you turned it off on purpose (or vice versa), check `su -c 'cat /data/local/tmp/hotspot-watchdog.log'`, then run `logcat -d | grep -i softap` right after an idle auto-shutoff to find the real message on your device, and adjust the `grep` pattern near the bottom of `scripts/hotspot-watchdog.sh`.
+
+## Optional: status notification with a Restart button
+
+If you have the **Termux:API** app installed (separate from Termux — install it from F-Droid or Play Store) and have run `pkg install termux-api` once inside Termux, this repo will send you a notification:
+- Right after boot, once the hotspot is up ("Hotspot Aktif").
+- Whenever the watchdog auto-restarts the hotspot from an idle timeout.
+- Whenever the scheduler turns it off/on.
+
+Each notification includes a **Restart Hotspot** button that re-runs the SoftAp command with your saved credentials — handy if something looks off and you don't want to open Termux.
+
+If Termux:API isn't installed, `scripts/notify-status.sh` detects that and exits quietly — nothing breaks, you just won't get notifications.
+
+## Optional: scheduled off/on
+
+If you answered "yes" to the scheduling prompt during install (and gave an OFF/ON hour), `scripts/hotspot-scheduler.sh` runs in the background and:
+- Turns the hotspot **off** at your chosen hour (24h format) every day.
+- Turns it back **on** at your chosen hour.
+
+Useful if this phone runs as a home server 24/7 but you don't need the hotspot overnight. Re-run `bash install.sh` any time to change the hours or turn scheduling off. Logs go to `su -c 'cat /data/local/tmp/hotspot-scheduler.log'`.
 
 ## Uninstalling
 
