@@ -53,32 +53,26 @@ cd android-auto-hotspot
    cd android-auto-hotspot-main
    ```
 
-### 2. Edit the script with your hotspot details
-
-```bash
-nano scripts/autostart-network.sh
-```
-Find these three lines near the top and change them to match your own hotspot (the same SSID/password you already set up in Android's Settings):
-```sh
-SSID="YourHotspotName"
-PASSWORD="YourHotspotPassword"
-SECURITY="wpa2"
-```
-`SECURITY` should be one of: `wpa2`, `wpa3`, or `open`. Save with `Ctrl+O`, Enter, then exit with `Ctrl+X`.
-
-### 3. Run the installer
+### 2. Run the installer
 
 ```bash
 bash install.sh
 ```
-This will:
-- Ask you to confirm before doing anything (type `y` and Enter).
-- Use `su` to copy the script into `/data/adb/service.d/autostart-network.sh` (the folder Magisk automatically runs scripts from after boot).
-- Make it executable.
+No editing required — the installer asks you for everything interactively:
+- **SSID** and **Password** (the same hotspot you already set up once in Android's Settings).
+- **Security** type: `wpa2`, `wpa3`, or `open` (defaults to `wpa2` if you just press Enter).
+- Whether to enable the **watchdog** (auto-restart the hotspot if it turns itself off from idle — see [Optional: auto-restart watchdog](#optional-auto-restart-watchdog) below).
+
+It then asks you to confirm before touching anything (type `y` and Enter), and uses `su` to:
+- Write your answers to `/data/adb/service.d/hotspot-config.sh` (kept separate from the scripts, `chmod 700` so only root can read it).
+- Copy `scripts/autostart-network.sh` (and `scripts/hotspot-watchdog.sh`, if enabled) into `/data/adb/service.d/` — the folder Magisk automatically runs scripts from after boot.
+- Make everything executable.
 
 You'll likely get a root permission popup here too if it's the installer's first time asking — grant it.
 
-### 4. Reboot to test
+**Want to change your SSID/password later, or toggle the watchdog on/off?** Just run `bash install.sh` again — it overwrites the config, no need to re-clone or edit files by hand.
+
+### 3. Reboot to test
 
 ```bash
 su -c reboot
@@ -87,7 +81,7 @@ su -c reboot
 
 Wait about **2–3 minutes** after the phone finishes booting — don't touch data/hotspot settings manually during this time, so you get a clean test.
 
-### 5. Check whether it worked
+### 4. Check whether it worked
 
 Open Termux again and run:
 ```bash
@@ -103,6 +97,23 @@ You should see 6 numbered lines with timestamps, e.g.:
 6. hotspot command sent: ...
 ```
 Then check your phone's notification shade or Settings → Hotspot to confirm it's actually on.
+
+## Optional: auto-restart watchdog
+
+Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). If you enabled the watchdog during install (or run `bash install.sh` again to turn it on), `scripts/hotspot-watchdog.sh` gets installed alongside the main script and runs continuously in the background:
+
+- It checks the hotspot's on/off state every 15 seconds.
+- If it just turned **off**, the watchdog scans recent `logcat` output for the system's own idle-timeout message. If it looks like an idle auto-shutoff, it restarts the hotspot automatically.
+- If you turned it off **yourself** (Settings or the quick-settings tile), no matching idle-timeout message is found, so the watchdog leaves it off.
+
+This detection is a best-effort heuristic — the exact log wording can differ by ROM/Android version. If it restarts the hotspot when you turned it off on purpose (or vice versa), check `su -c 'cat /data/local/tmp/hotspot-watchdog.log'`, then run `logcat -d | grep -i softap` right after an idle auto-shutoff to find the real message on your device, and adjust the `grep` pattern near the bottom of `scripts/hotspot-watchdog.sh`.
+
+## Uninstalling
+
+```bash
+bash uninstall.sh
+```
+Asks for confirmation, then removes `autostart-network.sh`, `hotspot-watchdog.sh`, and `hotspot-config.sh` from `/data/adb/service.d/` (whichever exist). It also offers to delete the log files, since they can contain your SSID. Any hotspot currently running stays on until you turn it off yourself — this only stops it from auto-starting/auto-restarting on future boots.
 
 ## Troubleshooting
 
@@ -121,19 +132,20 @@ Run `cmd wifi start-softap -h` directly (as root) on your device — some Androi
 If you have BusyBox installed (Magisk usually ships one), a bare `svc` or `cmd` in your `PATH` might resolve to BusyBox's own unrelated tool of the same name instead of Android's real one. This script avoids that by always calling full paths (`/system/bin/svc`, `/system/bin/cmd`) — if you modify the script, keep using full paths.
 
 **Hotspot turns on but shuts itself off a few minutes later:**
-Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). Check Settings → Hotspot & tethering → for an option like "Turn off hotspot automatically" and disable it if this bothers you.
+Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). Either disable it in Settings → Hotspot & tethering → "Turn off hotspot automatically", or enable the [watchdog](#optional-auto-restart-watchdog) to have it restart automatically instead.
 
 ## How it works internally
 
-Placed in `/data/adb/service.d/`, the script is executed by Magisk at the `late_start service` boot stage — one of the later points in the boot sequence, but still before every system service is guaranteed to be up. Instead of assuming a fixed delay, the script:
+Placed in `/data/adb/service.d/`, `autostart-network.sh` is executed by Magisk at the `late_start service` boot stage — one of the later points in the boot sequence, but still before every system service is guaranteed to be up. Instead of assuming a fixed delay, the script:
 
-1. Waits for the `sys.boot_completed` system property to become `1`.
-2. Polls `service check phone` every 2 seconds (up to 60 seconds) until Android's telephony service is registered.
-3. Runs `/system/bin/svc data enable`.
-4. Polls `service check wifi` the same way, until the wifi service is registered.
-5. Runs `/system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"`.
+1. Reads SSID/password/security from `hotspot-config.sh` (written by `install.sh`, sitting next to it in `/data/adb/service.d/`).
+2. Waits for the `sys.boot_completed` system property to become `1`.
+3. Polls `service check phone` every 2 seconds (up to 60 seconds) until Android's telephony service is registered.
+4. Runs `/system/bin/svc data enable`.
+5. Polls `service check wifi` the same way, until the wifi service is registered.
+6. Runs `/system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"`.
 
-Every step is logged with a timestamp to `/data/local/tmp/autostart-network.log`, so any failure is visible after the fact instead of failing silently.
+Every step is logged with a timestamp to `/data/local/tmp/autostart-network.log`, so any failure is visible after the fact instead of failing silently. If the watchdog is enabled, `hotspot-watchdog.sh` runs in parallel afterward, polling hotspot state and logging to `/data/local/tmp/hotspot-watchdog.log`.
 
 ## License
 
