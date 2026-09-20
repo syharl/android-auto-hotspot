@@ -14,7 +14,7 @@
 # ============================================================
 
 DIR="$(dirname "$0")"
-RESTART_SCRIPT="$DIR/restart-hotspot.sh"
+RESET_SCRIPT="$DIR/network-reset.sh"
 
 TERMUX_PREFIX=/data/data/com.termux/files/usr
 TERMUX_HOME=/data/data/com.termux/files/home
@@ -39,6 +39,6 @@ export PATH="$TERMUX_PREFIX/bin:$PATH"
     --id hotspot-status \
     --title "$TITLE" \
     --content "$MESSAGE" \
-    --button1 "Restart Hotspot" \
-    --button1-action "su -c '/system/bin/sh $RESTART_SCRIPT'" \
+    --button1 "Reset Jaringan" \
+    --button1-action "su -c '/system/bin/sh $RESET_SCRIPT'" \
     --priority high 2>/dev/null
