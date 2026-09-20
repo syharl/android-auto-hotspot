@@ -58,11 +58,10 @@ cd android-auto-hotspot
 ```bash
 bash install.sh
 ```
-No editing required — the installer asks you for everything interactively:
+No editing required — the installer only asks for two things:
 - **SSID** and **Password** (the same hotspot you already set up once in Android's Settings).
-- **Security** type: `wpa2`, `wpa3`, or `open` (defaults to `wpa2` if you just press Enter).
-- Whether to enable the **watchdog** (auto-restart the hotspot if it turns itself off from idle — see [Optional: auto-restart watchdog](#optional-auto-restart-watchdog) below).
-- Whether to **schedule** automatic off/on at fixed hours — see [Optional: scheduled off/on](#optional-scheduled-offon) below.
+
+Security defaults to `wpa2`. Everything else — changing SSID/password/security later, enabling the watchdog, or setting a daily off/on schedule — is handled afterward by the interactive settings menu, `bash menu.sh` (see [Settings menu](#settings-menu) below).
 
 It then asks you to confirm before touching anything (type `y` and Enter), and uses `su` to:
 - Write your answers to `/data/adb/service.d/hotspot-config.sh` (kept separate from the scripts, `chmod 700` so only root can read it).
@@ -71,7 +70,7 @@ It then asks you to confirm before touching anything (type `y` and Enter), and u
 
 You'll likely get a root permission popup here too if it's the installer's first time asking — grant it.
 
-**Want to change your SSID/password later, or toggle the watchdog on/off?** Just run `bash install.sh` again — it overwrites the config, no need to re-clone or edit files by hand.
+**Want to change your SSID/password later, or toggle the watchdog/schedule on/off?** Run `bash menu.sh` — no need to re-run the installer or edit files by hand.
 
 ### 3. Reboot to test
 
@@ -100,9 +99,21 @@ You should see 6 numbered lines with timestamps, e.g.:
 ```
 Then check your phone's notification shade or Settings → Hotspot to confirm it's actually on.
 
+## Settings menu
+
+```bash
+bash menu.sh
+```
+Run this any time after `install.sh` to:
+- Change SSID, password, or security type — takes effect after a reboot or tapping **Reset Jaringan** on the status notification.
+- Turn the **watchdog** on or off.
+- Set or clear the daily **off/on schedule**.
+
+It reads and rewrites `/data/adb/service.d/hotspot-config.sh` directly, so you never need to `nano` anything.
+
 ## Optional: auto-restart watchdog
 
-Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). If you enabled the watchdog during install (or run `bash install.sh` again to turn it on), `scripts/hotspot-watchdog.sh` gets installed alongside the main script and runs continuously in the background:
+Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). Enable it via `bash menu.sh` → option 4, then reboot. Once installed, `scripts/hotspot-watchdog.sh` runs continuously in the background:
 
 - It checks the hotspot's on/off state every 15 seconds.
 - If it just turned **off**, the watchdog scans recent `logcat` output for the system's own idle-timeout message. If it looks like an idle auto-shutoff, it restarts the hotspot automatically.
@@ -131,11 +142,11 @@ If Termux:API isn't installed, `scripts/notify-status.sh` detects that and exits
 
 ## Optional: scheduled off/on
 
-If you answered "yes" to the scheduling prompt during install (and gave an OFF/ON hour), `scripts/hotspot-scheduler.sh` runs in the background and:
+If you set a schedule via `bash menu.sh` → option 5 (and rebooted), `scripts/hotspot-scheduler.sh` runs in the background and:
 - Turns the hotspot **off** at your chosen hour (24h format) every day.
 - Turns it back **on** at your chosen hour.
 
-Useful if this phone runs as a home server 24/7 but you don't need the hotspot overnight. Re-run `bash install.sh` any time to change the hours or turn scheduling off. Logs go to `su -c 'cat /data/local/tmp/hotspot-scheduler.log'`.
+Useful if this phone runs as a home server 24/7 but you don't need the hotspot overnight. Run `bash menu.sh` any time to change the hours or clear the schedule. Logs go to `su -c 'cat /data/local/tmp/hotspot-scheduler.log'`.
 
 ## Uninstalling
 
