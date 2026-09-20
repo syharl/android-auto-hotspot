@@ -56,6 +56,7 @@ sleep 40
                 echo "  matched log line: $reason"
                 sleep 3
                 /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+                "$DIR/notify-status.sh" "Hotspot Auto-Restart" "$SSID mati sendiri (idle timeout), sudah dinyalakan ulang otomatis." 2>/dev/null
             else
                 echo "$(date): hotspot turned off, no idle-timeout signature in recent logs — assuming manual, not restarting"
             fi

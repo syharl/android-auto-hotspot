@@ -57,4 +57,6 @@ wait_for_service() {
     /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
     echo "6. hotspot command sent: $(date)"
 
+    "$DIR/notify-status.sh" "Hotspot Aktif" "$SSID sudah nyala otomatis setelah boot." 2>/dev/null
+
 } > "$LOG" 2>&1
