@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+### Fixed
+- Reboot instructions in README/install.sh corrected to `su -c /system/bin/reboot` — plain `su -c reboot` fails since Termux's `$PATH` doesn't include Android's `reboot` binary.
+
+### Changed
+- Notification button changed from a simple hotspot restart to a full **"Reset Jaringan"**: stop hotspot → disable data → airplane mode on → airplane mode off → re-enable data → restart hotspot. Every wait step polls actual system state (airplane mode setting, SIM/radio readiness, wifi service) instead of a fixed `sleep`. (`scripts/network-reset.sh`, replaces `scripts/restart-hotspot.sh`)
+
 ### Planned next
 - Multi-SSID / dual-band (2.4GHz + 5GHz) softAp support
 - Telegram/webhook notifications for hotspot state changes

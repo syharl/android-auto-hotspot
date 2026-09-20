@@ -17,13 +17,13 @@ SRC_MAIN="$SCRIPT_DIR/scripts/autostart-network.sh"
 SRC_WATCHDOG="$SCRIPT_DIR/scripts/hotspot-watchdog.sh"
 SRC_SCHEDULER="$SCRIPT_DIR/scripts/hotspot-scheduler.sh"
 SRC_NOTIFY="$SCRIPT_DIR/scripts/notify-status.sh"
-SRC_RESTART="$SCRIPT_DIR/scripts/restart-hotspot.sh"
+SRC_RESET="$SCRIPT_DIR/scripts/network-reset.sh"
 DEST_DIR="/data/adb/service.d"
 DEST_MAIN="$DEST_DIR/autostart-network.sh"
 DEST_WATCHDOG="$DEST_DIR/hotspot-watchdog.sh"
 DEST_SCHEDULER="$DEST_DIR/hotspot-scheduler.sh"
 DEST_NOTIFY="$DEST_DIR/notify-status.sh"
-DEST_RESTART="$DEST_DIR/restart-hotspot.sh"
+DEST_RESET="$DEST_DIR/network-reset.sh"
 DEST_CONFIG="$DEST_DIR/hotspot-config.sh"
 
 if [ ! -f "$SRC_MAIN" ]; then
@@ -79,8 +79,8 @@ cat "$SRC_MAIN" | su -c "cat > $DEST_MAIN"
 su -c "chmod 700 $DEST_MAIN"
 cat "$SRC_NOTIFY" | su -c "cat > $DEST_NOTIFY"
 su -c "chmod 700 $DEST_NOTIFY"
-cat "$SRC_RESTART" | su -c "cat > $DEST_RESTART"
-su -c "chmod 700 $DEST_RESTART"
+cat "$SRC_RESET" | su -c "cat > $DEST_RESET"
+su -c "chmod 700 $DEST_RESET"
 echo "[*] Installed $DEST_MAIN"
 
 # --- install or remove the watchdog ---
@@ -112,7 +112,7 @@ fi
 
 echo
 echo "[*] Done. Reboot to test:"
-echo "    su -c reboot"
+echo "    su -c /system/bin/reboot"
 echo "[*] After reboot, check logs with:"
 echo "    su -c 'cat /data/local/tmp/autostart-network.log'"
 [ -f "$SRC_WATCHDOG" ] && echo "    su -c 'cat /data/local/tmp/hotspot-watchdog.log'"

@@ -76,8 +76,9 @@ You'll likely get a root permission popup here too if it's the installer's first
 ### 3. Reboot to test
 
 ```bash
-su -c reboot
+su -c /system/bin/reboot
 ```
+(Using the full path avoids `su -c reboot` failing with "No command reboot found" — Termux's own `$PATH` doesn't include Android's `reboot` binary.)
 (a plain `reboot` won't work — rebooting needs root privilege)
 
 Wait about **2–3 minutes** after the phone finishes booting — don't touch data/hotspot settings manually during this time, so you get a clean test.
@@ -116,7 +117,15 @@ If you have the **Termux:API** app installed (separate from Termux — install i
 - Whenever the watchdog auto-restarts the hotspot from an idle timeout.
 - Whenever the scheduler turns it off/on.
 
-Each notification includes a **Restart Hotspot** button that re-runs the SoftAp command with your saved credentials — handy if something looks off and you don't want to open Termux.
+Each notification includes a **Reset Jaringan** button that does a full network reset, similar to what happens on a normal reboot's radio init — not just restarting the hotspot:
+1. Stop the hotspot
+2. Disable mobile data
+3. Turn airplane mode **on**
+4. Turn airplane mode **off**
+5. Re-enable mobile data
+6. Restart the hotspot
+
+Every wait in between polls the actual system state (airplane mode setting, SIM/radio readiness, wifi service) instead of a fixed delay — same approach as the boot script. Useful when the hotspot or data connection is stuck in a weird state and a plain restart isn't enough. Logs go to `su -c 'cat /data/local/tmp/network-reset.log'`.
 
 If Termux:API isn't installed, `scripts/notify-status.sh` detects that and exits quietly — nothing breaks, you just won't get notifications.
 

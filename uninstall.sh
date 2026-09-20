@@ -11,10 +11,11 @@
 set -e
 
 DEST_DIR="/data/adb/service.d"
-TARGETS="$DEST_DIR/autostart-network.sh $DEST_DIR/hotspot-watchdog.sh $DEST_DIR/hotspot-scheduler.sh $DEST_DIR/notify-status.sh $DEST_DIR/restart-hotspot.sh $DEST_DIR/hotspot-config.sh"
+TARGETS="$DEST_DIR/autostart-network.sh $DEST_DIR/hotspot-watchdog.sh $DEST_DIR/hotspot-scheduler.sh $DEST_DIR/notify-status.sh $DEST_DIR/network-reset.sh $DEST_DIR/hotspot-config.sh"
 LOG=/data/local/tmp/autostart-network.log
 WATCHDOG_LOG=/data/local/tmp/hotspot-watchdog.log
 SCHEDULER_LOG=/data/local/tmp/hotspot-scheduler.log
+RESET_LOG=/data/local/tmp/network-reset.log
 
 echo "[*] This will remove:"
 for f in $TARGETS; do
@@ -33,7 +34,7 @@ echo "[*] Removed installed scripts and config."
 
 read -p "Also delete log files (they may contain your SSID)? [y/N] " RMLOG
 if [ "$RMLOG" = "y" ] || [ "$RMLOG" = "Y" ]; then
-    su -c "rm -f $LOG $WATCHDOG_LOG $SCHEDULER_LOG"
+    su -c "rm -f $LOG $WATCHDOG_LOG $SCHEDULER_LOG $RESET_LOG"
     echo "[*] Logs removed."
 fi
 
