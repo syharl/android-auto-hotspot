@@ -1,9 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
 # menu.sh
-# Interactive settings menu — change SSID/password/security,
-# toggle the idle-timeout watchdog, and set/clear the daily
-# off/on schedule, any time after install.sh has run once.
+# Interactive control panel for android-auto-hotspot.
+# Press a number key — no Enter needed for menu navigation.
 #
 # Usage:
 #   bash menu.sh
@@ -11,25 +10,51 @@
 
 SCRIPT_DIR="$(dirname "$0")"
 DEST_DIR="/data/adb/service.d"
-DEST_CONFIG="$DEST_DIR/hotspot-config.sh"
+DEST_MAIN="$DEST_DIR/autostart-network.sh"
+DEST_NOTIFY="$DEST_DIR/notify-status.sh"
+DEST_RESET="$DEST_DIR/network-reset.sh"
 DEST_WATCHDOG="$DEST_DIR/hotspot-watchdog.sh"
 DEST_SCHEDULER="$DEST_DIR/hotspot-scheduler.sh"
+DEST_CONFIG="$DEST_DIR/hotspot-config.sh"
+SRC_MAIN="$SCRIPT_DIR/scripts/autostart-network.sh"
+SRC_NOTIFY="$SCRIPT_DIR/scripts/notify-status.sh"
+SRC_RESET="$SCRIPT_DIR/scripts/network-reset.sh"
 SRC_WATCHDOG="$SCRIPT_DIR/scripts/hotspot-watchdog.sh"
 SRC_SCHEDULER="$SCRIPT_DIR/scripts/hotspot-scheduler.sh"
+LOG=/data/local/tmp/autostart-network.log
+WATCHDOG_LOG=/data/local/tmp/hotspot-watchdog.log
+SCHEDULER_LOG=/data/local/tmp/hotspot-scheduler.log
+RESET_LOG=/data/local/tmp/network-reset.log
 
-if ! su -c "[ -f $DEST_CONFIG ]"; then
-    echo "[!] Belum ada instalasi. Jalankan 'bash install.sh' dulu."
-    exit 1
-fi
+# --- single-keypress read helper ---
+press_key() {
+    # $1 = prompt text. Reads exactly one character, no Enter needed.
+    read -n 1 -r -p "$1" KEY
+    echo
+}
+
+pause() {
+    read -n 1 -r -s -p "Tekan tombol apa saja untuk lanjut..."
+    echo
+}
+
+mask() {
+    printf '%s' "$1" | sed 's/./*/g'
+}
+
+config_exists() {
+    su -c "[ -f $DEST_CONFIG ]" 2>/dev/null
+}
 
 load_config() {
-    CONFIG_TMP="$(mktemp)"
-    su -c "cat $DEST_CONFIG" > "$CONFIG_TMP"
-    OFF_HOUR=""
-    ON_HOUR=""
-    # shellcheck source=/dev/null
-    . "$CONFIG_TMP"
-    rm -f "$CONFIG_TMP"
+    SSID=""; PASSWORD=""; SECURITY="wpa2"; WATCHDOG_ENABLED=0; OFF_HOUR=""; ON_HOUR=""
+    if config_exists; then
+        CONFIG_TMP="$(mktemp)"
+        su -c "cat $DEST_CONFIG" > "$CONFIG_TMP"
+        # shellcheck source=/dev/null
+        . "$CONFIG_TMP"
+        rm -f "$CONFIG_TMP"
+    fi
 }
 
 save_config() {
@@ -38,114 +63,237 @@ save_config() {
         echo "SSID=\"$SSID\""
         echo "PASSWORD=\"$PASSWORD\""
         echo "SECURITY=\"$SECURITY\""
+        echo "WATCHDOG_ENABLED=$WATCHDOG_ENABLED"
         if [ -n "$OFF_HOUR" ] && [ -n "$ON_HOUR" ]; then
             echo "OFF_HOUR=$OFF_HOUR"
             echo "ON_HOUR=$ON_HOUR"
         fi
     } > "$CONFIG_TMP"
+    su -c "mkdir -p $DEST_DIR"
     cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
     rm -f "$CONFIG_TMP"
     su -c "chmod 700 $DEST_CONFIG"
 }
 
-mask() {
-    printf '%s' "$1" | sed 's/./*/g'
+is_autostart_on() {
+    su -c "[ -f $DEST_MAIN ]" 2>/dev/null
 }
 
-show_status() {
-    echo "-----------------------------------------------"
-    echo "SSID      : $SSID"
-    echo "Password  : $(mask "$PASSWORD")"
-    echo "Security  : $SECURITY"
-    if su -c "[ -f $DEST_WATCHDOG ]"; then
-        echo "Watchdog  : AKTIF (auto-restart saat idle timeout)"
-    else
-        echo "Watchdog  : nonaktif"
+apply_watchdog() {
+    # Installs or removes hotspot-watchdog.sh to match WATCHDOG_ENABLED,
+    # but only if autostart itself is currently on.
+    if ! is_autostart_on; then
+        return
     fi
-    if [ -n "$OFF_HOUR" ] && [ -n "$ON_HOUR" ] && su -c "[ -f $DEST_SCHEDULER ]"; then
-        echo "Jadwal    : mati jam $OFF_HOUR:00, nyala jam $ON_HOUR:00"
+    if [ "$WATCHDOG_ENABLED" = "1" ] && [ -f "$SRC_WATCHDOG" ]; then
+        cat "$SRC_WATCHDOG" | su -c "cat > $DEST_WATCHDOG"
+        su -c "chmod 700 $DEST_WATCHDOG"
     else
-        echo "Jadwal    : nonaktif"
+        su -c "rm -f $DEST_WATCHDOG" 2>/dev/null
     fi
-    echo "-----------------------------------------------"
 }
 
-load_config
+apply_schedule() {
+    # Installs or removes hotspot-scheduler.sh to match OFF_HOUR/ON_HOUR,
+    # but only if autostart itself is currently on.
+    if ! is_autostart_on; then
+        return
+    fi
+    if [ -n "$OFF_HOUR" ] && [ -n "$ON_HOUR" ] && [ -f "$SRC_SCHEDULER" ]; then
+        cat "$SRC_SCHEDULER" | su -c "cat > $DEST_SCHEDULER"
+        su -c "chmod 700 $DEST_SCHEDULER"
+    else
+        su -c "rm -f $DEST_SCHEDULER" 2>/dev/null
+    fi
+}
 
+turn_on() {
+    if ! config_exists; then
+        echo "Belum ada SSID/password tersimpan. Isi dulu:"
+        read -p "SSID: " SSID
+        read -s -p "Password: " PASSWORD
+        echo
+        SECURITY="wpa2"
+        WATCHDOG_ENABLED=0
+        OFF_HOUR=""
+        ON_HOUR=""
+        save_config
+    fi
+    su -c "mkdir -p $DEST_DIR"
+    cat "$SRC_MAIN" | su -c "cat > $DEST_MAIN"
+    su -c "chmod 700 $DEST_MAIN"
+    cat "$SRC_NOTIFY" | su -c "cat > $DEST_NOTIFY"
+    su -c "chmod 700 $DEST_NOTIFY"
+    cat "$SRC_RESET" | su -c "cat > $DEST_RESET"
+    su -c "chmod 700 $DEST_RESET"
+    apply_watchdog
+    apply_schedule
+    echo "[*] Autostart Hotspot: AKTIF. Reboot agar berlaku (su -c /system/bin/reboot)."
+}
+
+turn_off() {
+    su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER" 2>/dev/null
+    echo "[*] Autostart Hotspot: MATI. SSID/password/pengaturan tetap tersimpan."
+}
+
+toggle_autostart() {
+    if is_autostart_on; then
+        turn_off
+    else
+        turn_on
+    fi
+}
+
+settings_menu() {
+    while true; do
+        load_config
+        clear 2>/dev/null
+        echo "=== Pengaturan ==="
+        echo "SSID      : $SSID"
+        echo "Password  : $(mask "$PASSWORD")"
+        echo "Security  : $SECURITY"
+        [ "$WATCHDOG_ENABLED" = "1" ] && WSTAT="AKTIF" || WSTAT="nonaktif"
+        echo "Watchdog  : $WSTAT"
+        if [ -n "$OFF_HOUR" ] && [ -n "$ON_HOUR" ]; then
+            echo "Jadwal    : mati $OFF_HOUR:00, nyala $ON_HOUR:00"
+        else
+            echo "Jadwal    : nonaktif"
+        fi
+        echo
+        echo "[1] Ganti SSID"
+        echo "[2] Ganti Password"
+        echo "[3] Ganti Security (wpa2/wpa3/open)"
+        echo "[4] Toggle Watchdog"
+        echo "[5] Atur Jadwal Off/On"
+        echo "[6] Nonaktifkan Jadwal"
+        echo "[0] Kembali"
+        press_key "Pilih: "
+
+        case "$KEY" in
+            1)
+                read -p "SSID baru: " NEW_VAL
+                [ -n "$NEW_VAL" ] && SSID="$NEW_VAL"
+                save_config
+                echo "[*] SSID diperbarui dan langsung diterapkan."
+                is_autostart_on && echo "    (tekan 'Reset Jaringan' di notifikasi, atau reboot, untuk memakainya sekarang)"
+                pause
+                ;;
+            2)
+                read -s -p "Password baru: " NEW_VAL
+                echo
+                [ -n "$NEW_VAL" ] && PASSWORD="$NEW_VAL"
+                save_config
+                echo "[*] Password diperbarui dan langsung diterapkan."
+                is_autostart_on && echo "    (tekan 'Reset Jaringan' di notifikasi, atau reboot, untuk memakainya sekarang)"
+                pause
+                ;;
+            3)
+                read -p "Security [wpa2/wpa3/open]: " NEW_VAL
+                [ -n "$NEW_VAL" ] && SECURITY="$NEW_VAL"
+                save_config
+                echo "[*] Security diperbarui dan langsung diterapkan."
+                pause
+                ;;
+            4)
+                if [ "$WATCHDOG_ENABLED" = "1" ]; then
+                    WATCHDOG_ENABLED=0
+                else
+                    WATCHDOG_ENABLED=1
+                fi
+                save_config
+                apply_watchdog
+                if is_autostart_on; then
+                    echo "[*] Watchdog diperbarui dan langsung diterapkan."
+                else
+                    echo "[*] Watchdog disimpan, akan aktif begitu Autostart dinyalakan."
+                fi
+                pause
+                ;;
+            5)
+                read -p "  Matikan jam berapa (0-23): " OFF_HOUR
+                read -p "  Nyalakan jam berapa (0-23): " ON_HOUR
+                save_config
+                apply_schedule
+                if is_autostart_on; then
+                    echo "[*] Jadwal diperbarui dan langsung diterapkan."
+                else
+                    echo "[*] Jadwal disimpan, akan aktif begitu Autostart dinyalakan."
+                fi
+                pause
+                ;;
+            6)
+                OFF_HOUR=""
+                ON_HOUR=""
+                save_config
+                apply_schedule
+                echo "[*] Jadwal dinonaktifkan."
+                pause
+                ;;
+            0)
+                return
+                ;;
+            *)
+                echo "Pilihan tidak dikenal."
+                pause
+                ;;
+        esac
+    done
+}
+
+do_uninstall() {
+    echo "Ini akan menghapus SEMUA file & pengaturan (SSID/password ikut terhapus),"
+    echo "seperti belum pernah install sama sekali."
+    press_key "Yakin? (y/n): "
+    if [ "$KEY" != "y" ] && [ "$KEY" != "Y" ]; then
+        echo "Dibatalkan."
+        pause
+        return
+    fi
+    su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONFIG" 2>/dev/null
+    press_key "Hapus juga log lama? (y/n): "
+    if [ "$KEY" = "y" ] || [ "$KEY" = "Y" ]; then
+        su -c "rm -f $LOG $WATCHDOG_LOG $SCHEDULER_LOG $RESET_LOG" 2>/dev/null
+    fi
+    echo "[*] Selesai. Semua pengaturan sudah direset seperti awal."
+    pause
+}
+
+# --- main loop ---
 while true; do
+    load_config
+    clear 2>/dev/null
+    echo "=== android-auto-hotspot ==="
+    if is_autostart_on; then
+        STATUS="AKTIF"
+    else
+        STATUS="MATI"
+    fi
+    echo "Status Autostart Hotspot: $STATUS"
     echo
-    echo "=== android-auto-hotspot: Menu Pengaturan ==="
-    show_status
-    echo "1) Ganti SSID"
-    echo "2) Ganti Password"
-    echo "3) Ganti Security (wpa2/wpa3/open)"
-    echo "4) Aktif/Nonaktifkan Watchdog (auto-restart idle timeout)"
-    echo "5) Atur Jadwal Off/On harian"
-    echo "6) Nonaktifkan Jadwal"
-    echo "0) Keluar"
-    read -p "Pilih: " CHOICE
+    echo "[1] Toggle Autostart Hotspot ($STATUS)"
+    echo "[2] Pengaturan"
+    echo "[3] Uninstall (reset total)"
+    echo "[0] Keluar"
+    press_key "Pilih: "
 
-    case "$CHOICE" in
+    case "$KEY" in
         1)
-            read -p "SSID baru: " NEW_VAL
-            [ -n "$NEW_VAL" ] && SSID="$NEW_VAL"
-            save_config
-            echo "[*] SSID diperbarui. Reboot atau tekan 'Reset Jaringan' di notifikasi agar berlaku."
+            toggle_autostart
+            pause
             ;;
         2)
-            read -s -p "Password baru: " NEW_VAL
-            echo
-            [ -n "$NEW_VAL" ] && PASSWORD="$NEW_VAL"
-            save_config
-            echo "[*] Password diperbarui. Reboot atau tekan 'Reset Jaringan' di notifikasi agar berlaku."
+            settings_menu
             ;;
         3)
-            read -p "Security [wpa2/wpa3/open]: " NEW_VAL
-            [ -n "$NEW_VAL" ] && SECURITY="$NEW_VAL"
-            save_config
-            echo "[*] Security diperbarui. Reboot atau tekan 'Reset Jaringan' di notifikasi agar berlaku."
-            ;;
-        4)
-            if su -c "[ -f $DEST_WATCHDOG ]"; then
-                su -c "rm -f $DEST_WATCHDOG"
-                echo "[*] Watchdog dinonaktifkan."
-            else
-                if [ ! -f "$SRC_WATCHDOG" ]; then
-                    echo "[!] scripts/hotspot-watchdog.sh tidak ditemukan di repo ini."
-                else
-                    cat "$SRC_WATCHDOG" | su -c "cat > $DEST_WATCHDOG"
-                    su -c "chmod 700 $DEST_WATCHDOG"
-                    echo "[*] Watchdog diaktifkan."
-                fi
-            fi
-            echo "[*] Reboot agar perubahan berlaku."
-            ;;
-        5)
-            read -p "  Matikan jam berapa (0-23): " OFF_HOUR
-            read -p "  Nyalakan jam berapa (0-23): " ON_HOUR
-            save_config
-            if [ ! -f "$SRC_SCHEDULER" ]; then
-                echo "[!] scripts/hotspot-scheduler.sh tidak ditemukan di repo ini."
-            else
-                cat "$SRC_SCHEDULER" | su -c "cat > $DEST_SCHEDULER"
-                su -c "chmod 700 $DEST_SCHEDULER"
-                echo "[*] Jadwal diatur: mati $OFF_HOUR:00, nyala $ON_HOUR:00 setiap hari."
-            fi
-            echo "[*] Reboot agar jadwal mulai berjalan."
-            ;;
-        6)
-            su -c "rm -f $DEST_SCHEDULER"
-            OFF_HOUR=""
-            ON_HOUR=""
-            save_config
-            echo "[*] Jadwal dinonaktifkan."
+            do_uninstall
             ;;
         0)
             echo "Selesai."
-            break
+            exit 0
             ;;
         *)
             echo "Pilihan tidak dikenal."
+            pause
             ;;
     esac
 done

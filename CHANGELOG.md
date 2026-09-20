@@ -2,10 +2,11 @@
 
 ## Unreleased
 ### Added
-- Interactive settings menu, `menu.sh`, alongside `install.sh` — change SSID/password/security, toggle the watchdog, and set/clear the daily schedule, all without editing files or re-running the installer.
+- **Control panel**, `menu.sh` — single-keypress interactive menu (no Enter needed to navigate) with three main options: Toggle Autostart Hotspot on/off, Pengaturan (change SSID/password/security, toggle watchdog, set/clear schedule — all applied immediately), and Uninstall (full reset). Replaces the earlier flat settings menu.
 
 ### Changed
-- `install.sh` simplified to only ask for **SSID and password** (security defaults to `wpa2`). Watchdog and scheduling are no longer install-time prompts — they're configured afterward via `menu.sh`.
+- `install.sh` now detects an existing `hotspot-config.sh` and reuses it automatically — SSID/password are only asked on a true first install. Re-running it also restores the watchdog/schedule if they were previously enabled.
+- Turning autostart **off** via the menu keeps SSID/password/watchdog/schedule preferences saved, so turning it back **on** doesn't require re-entering anything.
 
 ### Fixed
 - Reboot instructions in README/install.sh corrected to `su -c /system/bin/reboot` — plain `su -c reboot` fails since Termux's `$PATH` doesn't include Android's `reboot` binary.

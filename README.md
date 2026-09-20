@@ -58,19 +58,21 @@ cd android-auto-hotspot
 ```bash
 bash install.sh
 ```
-No editing required — the installer only asks for two things:
+No editing required. **First install:** the installer asks for two things:
 - **SSID** and **Password** (the same hotspot you already set up once in Android's Settings).
 
-Security defaults to `wpa2`. Everything else — changing SSID/password/security later, enabling the watchdog, or setting a daily off/on schedule — is handled afterward by the interactive settings menu, `bash menu.sh` (see [Settings menu](#settings-menu) below).
+Security defaults to `wpa2`. **Re-running it later** (e.g. after `git pull`, or if you uninstalled and reinstalled without wiping config) skips the SSID/password prompt entirely — it detects your existing `hotspot-config.sh` and reuses it automatically, along with whatever watchdog/schedule settings you had.
+
+Changing SSID/password/security afterward, or toggling the watchdog and schedule, is done through the control panel: `bash menu.sh` (see [Control panel](#control-panel) below).
 
 It then asks you to confirm before touching anything (type `y` and Enter), and uses `su` to:
 - Write your answers to `/data/adb/service.d/hotspot-config.sh` (kept separate from the scripts, `chmod 700` so only root can read it).
-- Copy `scripts/autostart-network.sh` (and `scripts/hotspot-watchdog.sh`, if enabled) into `/data/adb/service.d/` — the folder Magisk automatically runs scripts from after boot.
+- Copy `scripts/autostart-network.sh` (and `scripts/hotspot-watchdog.sh`/`scripts/hotspot-scheduler.sh`, if they were previously enabled) into `/data/adb/service.d/` — the folder Magisk automatically runs scripts from after boot.
 - Make everything executable.
 
 You'll likely get a root permission popup here too if it's the installer's first time asking — grant it.
 
-**Want to change your SSID/password later, or toggle the watchdog/schedule on/off?** Run `bash menu.sh` — no need to re-run the installer or edit files by hand.
+**Want to change your SSID/password later, toggle the watchdog/schedule, or uninstall?** Run `bash menu.sh` — a control panel, no need to re-run the installer or edit files by hand.
 
 ### 3. Reboot to test
 
@@ -99,21 +101,22 @@ You should see 6 numbered lines with timestamps, e.g.:
 ```
 Then check your phone's notification shade or Settings → Hotspot to confirm it's actually on.
 
-## Settings menu
+## Control panel
 
 ```bash
 bash menu.sh
 ```
-Run this any time after `install.sh` to:
-- Change SSID, password, or security type — takes effect after a reboot or tapping **Reset Jaringan** on the status notification.
-- Turn the **watchdog** on or off.
-- Set or clear the daily **off/on schedule**.
+A single interactive control panel — press a number key, no Enter needed. Three main options:
 
-It reads and rewrites `/data/adb/service.d/hotspot-config.sh` directly, so you never need to `nano` anything.
+- **[1] Toggle Autostart Hotspot** — turns the whole autostart setup on or off. Turning it **off** removes the installed scripts but keeps your SSID/password/settings saved, so turning it back **on** doesn't ask for anything again. If you haven't installed at all yet, turning it on for the first time will ask for SSID/password itself (same as `install.sh`).
+- **[2] Pengaturan** — a submenu to change SSID, password, security, toggle the watchdog, or set/clear the daily schedule. Every change is applied immediately (installs or removes the relevant script right away if autostart is currently on) — no separate save step.
+- **[3] Uninstall** — removes everything, including your saved SSID/password, back to a clean state as if never installed. Optionally also deletes the log files.
+
+You can run `menu.sh` any time — it always reflects and edits whatever is actually on the device.
 
 ## Optional: auto-restart watchdog
 
-Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). Enable it via `bash menu.sh` → option 4, then reboot. Once installed, `scripts/hotspot-watchdog.sh` runs continuously in the background:
+Many Android versions auto-disable the hotspot after a few minutes with no connected client (a battery-saving feature). Enable it via `bash menu.sh` → **[2] Pengaturan** → **[4] Toggle Watchdog**. Once installed, `scripts/hotspot-watchdog.sh` runs continuously in the background:
 
 - It checks the hotspot's on/off state every 15 seconds.
 - If it just turned **off**, the watchdog scans recent `logcat` output for the system's own idle-timeout message. If it looks like an idle auto-shutoff, it restarts the hotspot automatically.
@@ -142,7 +145,7 @@ If Termux:API isn't installed, `scripts/notify-status.sh` detects that and exits
 
 ## Optional: scheduled off/on
 
-If you set a schedule via `bash menu.sh` → option 5 (and rebooted), `scripts/hotspot-scheduler.sh` runs in the background and:
+If you set a schedule via `bash menu.sh` → **[2] Pengaturan** → **[5] Atur Jadwal Off/On**, `scripts/hotspot-scheduler.sh` runs in the background and:
 - Turns the hotspot **off** at your chosen hour (24h format) every day.
 - Turns it back **on** at your chosen hour.
 
@@ -150,10 +153,13 @@ Useful if this phone runs as a home server 24/7 but you don't need the hotspot o
 
 ## Uninstalling
 
+Easiest: `bash menu.sh` → **[3] Uninstall**.
+
+Or directly from the command line:
 ```bash
 bash uninstall.sh
 ```
-Asks for confirmation, then removes `autostart-network.sh`, `hotspot-watchdog.sh`, and `hotspot-config.sh` from `/data/adb/service.d/` (whichever exist). It also offers to delete the log files, since they can contain your SSID. Any hotspot currently running stays on until you turn it off yourself — this only stops it from auto-starting/auto-restarting on future boots.
+Asks for confirmation, then removes every installed script and `hotspot-config.sh` (whichever exist) from `/data/adb/service.d/`. It also offers to delete the log files, since they can contain your SSID. Any hotspot currently running stays on until you turn it off yourself — this only stops it from auto-starting/auto-restarting on future boots.
 
 ## Troubleshooting
 
