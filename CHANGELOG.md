@@ -3,10 +3,14 @@
 ## Unreleased
 ### Added
 - **Control panel**, `menu.sh` — single-keypress interactive menu (no Enter needed to navigate) with three main options: Toggle Autostart Hotspot on/off, Pengaturan (change SSID/password/security, toggle watchdog, set/clear schedule — all applied immediately), and Uninstall (full reset). Replaces the earlier flat settings menu.
+- **Remote reset listener** — trigger the full "Reset Jaringan" sequence from another phone (e.g. F6) connected to x3nfc's hotspot, via a simple token-protected URL, without unlocking or touching x3nfc at all. Runs as a normal Termux process via Termux:Boot (no root needed except the final trigger). Toggle via `menu.sh` → Pengaturan → option 7. (`scripts/reset-listener.sh`, `scripts/reset-handler.sh`, requires `pkg install nmap`)
 
 ### Changed
 - `install.sh` now detects an existing `hotspot-config.sh` and reuses it automatically — SSID/password are only asked on a true first install. Re-running it also restores the watchdog/schedule if they were previously enabled.
 - Turning autostart **off** via the menu keeps SSID/password/watchdog/schedule preferences saved, so turning it back **on** doesn't require re-entering anything.
+
+### Changed
+- `menu.sh` main menu restructured to 5 items: Toggle Autostart, Pengaturan, **Reset Jaringan (sekarang)**, **Reboot x3nfc**, and Uninstall — putting the two most common quick actions directly on the main screen instead of buried in submenus or only reachable via the notification.
 
 ### Fixed
 - Reboot instructions in README/install.sh corrected to `su -c /system/bin/reboot` — plain `su -c reboot` fails since Termux's `$PATH` doesn't include Android's `reboot` binary.

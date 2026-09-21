@@ -106,11 +106,13 @@ Then check your phone's notification shade or Settings → Hotspot to confirm it
 ```bash
 bash menu.sh
 ```
-A single interactive control panel — press a number key, no Enter needed. Three main options:
+A single interactive control panel — press a number key, no Enter needed. Five main options:
 
 - **[1] Toggle Autostart Hotspot** — turns the whole autostart setup on or off. Turning it **off** removes the installed scripts but keeps your SSID/password/settings saved, so turning it back **on** doesn't ask for anything again. If you haven't installed at all yet, turning it on for the first time will ask for SSID/password itself (same as `install.sh`).
-- **[2] Pengaturan** — a submenu to change SSID, password, security, toggle the watchdog, or set/clear the daily schedule. Every change is applied immediately (installs or removes the relevant script right away if autostart is currently on) — no separate save step.
-- **[3] Uninstall** — removes everything, including your saved SSID/password, back to a clean state as if never installed. Optionally also deletes the log files.
+- **[2] Pengaturan** — a submenu to change SSID, password, security, toggle the watchdog, set/clear the daily schedule, and toggle the [remote reset listener](#optional-remote-reset-without-touching-x3nfc). Every change is applied immediately — no separate save step.
+- **[3] Reset Jaringan (sekarang)** — runs the full network reset right now, directly from the menu (stop hotspot → data off → airplane mode on/off → data on → hotspot on). Takes about a minute; same sequence as the notification button or the remote listener.
+- **[4] Reboot x3nfc** — reboots the phone, with a confirmation prompt first.
+- **[5] Uninstall** — removes everything, including your saved SSID/password, back to a clean state as if never installed. Optionally also deletes the log files.
 
 You can run `menu.sh` any time — it always reflects and edits whatever is actually on the device.
 
@@ -151,9 +153,31 @@ If you set a schedule via `bash menu.sh` → **[2] Pengaturan** → **[5] Atur J
 
 Useful if this phone runs as a home server 24/7 but you don't need the hotspot overnight. Run `bash menu.sh` any time to change the hours or clear the schedule. Logs go to `su -c 'cat /data/local/tmp/hotspot-scheduler.log'`.
 
+## Optional: remote reset without touching x3nfc
+
+Trigger the same **"Reset Jaringan"** sequence from another phone (e.g. F6) connected to x3nfc's hotspot — no need to unlock or open anything on x3nfc.
+
+**Requirements (on x3nfc, one time):**
+```bash
+pkg install nmap termux-boot
+```
+(`termux-boot` here is the Termux *package*, not the separate Termux:Boot app — you already have the app installed, this just documents the dependency.)
+
+**Enable it:** `bash menu.sh` → **[2] Pengaturan** → **[7] Toggle Remote Reset Listener**. It generates a random token, starts listening immediately, and installs itself into `~/.termux/boot/` so it also starts automatically on every future boot — without ever opening Termux.
+
+You'll get a URL like:
+```
+http://192.168.43.1:8091/reset?key=AB12CD34
+```
+Save that as a bookmark on F6 (while connected to x3nfc's hotspot). Opening it in F6's browser triggers the full network reset on x3nfc immediately — nothing needs to be unlocked or tapped on x3nfc itself. Double-check the IP by looking at F6's WiFi connection details (Gateway address) since it isn't always `192.168.43.1` on every device.
+
+This only works while F6 is actually associated with x3nfc's hotspot Wi-Fi (which usually stays up even when mobile data itself is misbehaving — that's exactly the situation this is meant to fix). If the hotspot radio is fully off, there's no local link to reach it over, and a physical restart is the only option. Logs: `cat ~/reset-listener.log` (in Termux, no `su` needed).
+
+**Security note:** the token is a shared secret in the URL — anyone connected to your hotspot who guesses/sees it could trigger a reset too. Since the hotspot itself already needs a password to join, this is a reasonable second layer, not a strong one — don't share the URL outside people you trust with hotspot access.
+
 ## Uninstalling
 
-Easiest: `bash menu.sh` → **[3] Uninstall**.
+Easiest: `bash menu.sh` → **[5] Uninstall**.
 
 Or directly from the command line:
 ```bash

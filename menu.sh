@@ -48,6 +48,7 @@ config_exists() {
 
 load_config() {
     SSID=""; PASSWORD=""; SECURITY="wpa2"; WATCHDOG_ENABLED=0; OFF_HOUR=""; ON_HOUR=""
+    RESET_LISTENER_ENABLED=0; RESET_LISTENER_PORT=8091; RESET_LISTENER_TOKEN=""
     if config_exists; then
         CONFIG_TMP="$(mktemp)"
         su -c "cat $DEST_CONFIG" > "$CONFIG_TMP"
@@ -68,6 +69,9 @@ save_config() {
             echo "OFF_HOUR=$OFF_HOUR"
             echo "ON_HOUR=$ON_HOUR"
         fi
+        echo "RESET_LISTENER_ENABLED=$RESET_LISTENER_ENABLED"
+        echo "RESET_LISTENER_PORT=$RESET_LISTENER_PORT"
+        [ -n "$RESET_LISTENER_TOKEN" ] && echo "RESET_LISTENER_TOKEN=$RESET_LISTENER_TOKEN"
     } > "$CONFIG_TMP"
     su -c "mkdir -p $DEST_DIR"
     cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
@@ -144,6 +148,50 @@ toggle_autostart() {
     fi
 }
 
+stop_listener() {
+    pkill -f "reset-listener.sh" 2>/dev/null
+    rm -f "$HOME/.termux/boot/reset-listener.sh"
+}
+
+start_listener_now() {
+    nohup bash "$SCRIPT_DIR/scripts/reset-listener.sh" > /dev/null 2>&1 &
+}
+
+toggle_reset_listener() {
+    if [ "$RESET_LISTENER_ENABLED" = "1" ]; then
+        RESET_LISTENER_ENABLED=0
+        save_config
+        stop_listener
+        echo "[*] Remote Reset Listener dimatikan."
+        return
+    fi
+
+    if ! command -v ncat > /dev/null 2>&1; then
+        echo "[!] 'ncat' belum terinstall. Jalankan dulu: pkg install nmap"
+        return
+    fi
+
+    [ -z "$RESET_LISTENER_TOKEN" ] && RESET_LISTENER_TOKEN="$RANDOM$RANDOM"
+    [ -z "$RESET_LISTENER_PORT" ] && RESET_LISTENER_PORT=8091
+    RESET_LISTENER_ENABLED=1
+    save_config
+
+    pkill -f "reset-listener.sh" 2>/dev/null
+    mkdir -p "$HOME/.termux/boot"
+    cat > "$HOME/.termux/boot/reset-listener.sh" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+exec bash "$SCRIPT_DIR/scripts/reset-listener.sh"
+EOF
+    chmod +x "$HOME/.termux/boot/reset-listener.sh"
+    start_listener_now
+
+    echo "[*] Remote Reset Listener AKTIF (port $RESET_LISTENER_PORT)."
+    echo "    Dari F6 (konek ke hotspot x3nfc), buka di browser:"
+    echo "    http://<ip-hotspot-x3nfc>:$RESET_LISTENER_PORT/reset?key=$RESET_LISTENER_TOKEN"
+    echo "    Cek IP hotspot lewat: pengaturan WiFi F6 -> detail koneksi -> Gateway"
+    echo "    (biasanya 192.168.43.1, tapi cek dulu biar pasti)"
+}
+
 settings_menu() {
     while true; do
         load_config
@@ -159,6 +207,11 @@ settings_menu() {
         else
             echo "Jadwal    : nonaktif"
         fi
+        if [ "$RESET_LISTENER_ENABLED" = "1" ]; then
+            echo "Remote Reset Listener : AKTIF (port $RESET_LISTENER_PORT)"
+        else
+            echo "Remote Reset Listener : nonaktif"
+        fi
         echo
         echo "[1] Ganti SSID"
         echo "[2] Ganti Password"
@@ -166,6 +219,7 @@ settings_menu() {
         echo "[4] Toggle Watchdog"
         echo "[5] Atur Jadwal Off/On"
         echo "[6] Nonaktifkan Jadwal"
+        echo "[7] Toggle Remote Reset Listener (trigger dari HP lain)"
         echo "[0] Kembali"
         press_key "Pilih: "
 
@@ -229,6 +283,10 @@ settings_menu() {
                 echo "[*] Jadwal dinonaktifkan."
                 pause
                 ;;
+            7)
+                toggle_reset_listener
+                pause
+                ;;
             0)
                 return
                 ;;
@@ -250,12 +308,38 @@ do_uninstall() {
         return
     fi
     su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONFIG" 2>/dev/null
+    stop_listener
     press_key "Hapus juga log lama? (y/n): "
     if [ "$KEY" = "y" ] || [ "$KEY" = "Y" ]; then
         su -c "rm -f $LOG $WATCHDOG_LOG $SCHEDULER_LOG $RESET_LOG" 2>/dev/null
+        rm -f "$HOME/reset-listener.log" 2>/dev/null
     fi
     echo "[*] Selesai. Semua pengaturan sudah direset seperti awal."
     pause
+}
+
+do_reset_now() {
+    if ! su -c "[ -f $DEST_RESET ]" 2>/dev/null; then
+        echo "[!] network-reset.sh belum terpasang. Aktifkan dulu Autostart Hotspot (opsi 1)."
+        pause
+        return
+    fi
+    echo "[*] Menjalankan Reset Jaringan (stop hotspot -> data off -> pesawat on/off -> data on -> hotspot on)..."
+    echo "    Mohon tunggu, ini butuh waktu sekitar 1 menit..."
+    su -c "/system/bin/sh $DEST_RESET"
+    echo "[*] Reset selesai. Log: su -c 'cat /data/local/tmp/network-reset.log'"
+    pause
+}
+
+do_reboot() {
+    echo "Ini akan me-reboot x3nfc sekarang."
+    press_key "Yakin? (y/n): "
+    if [ "$KEY" != "y" ] && [ "$KEY" != "Y" ]; then
+        echo "Dibatalkan."
+        pause
+        return
+    fi
+    su -c /system/bin/reboot
 }
 
 # --- main loop ---
@@ -272,7 +356,9 @@ while true; do
     echo
     echo "[1] Toggle Autostart Hotspot ($STATUS)"
     echo "[2] Pengaturan"
-    echo "[3] Uninstall (reset total)"
+    echo "[3] Reset Jaringan (sekarang)"
+    echo "[4] Reboot x3nfc"
+    echo "[5] Uninstall (reset total)"
     echo "[0] Keluar"
     press_key "Pilih: "
 
@@ -285,6 +371,12 @@ while true; do
             settings_menu
             ;;
         3)
+            do_reset_now
+            ;;
+        4)
+            do_reboot
+            ;;
+        5)
             do_uninstall
             ;;
         0)
