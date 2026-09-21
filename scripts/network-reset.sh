@@ -1,18 +1,22 @@
 #!/system/bin/sh
 # ============================================================
 # network-reset.sh
-# Called by the "Reset Jaringan" notification button (via su).
-# A harder reset than just restarting the hotspot — mimics what
-# happens on a normal reboot's radio init sequence:
-#   1. Stop the hotspot
-#   2. Disable mobile data
-#   3. Turn airplane mode ON
-#   4. Turn airplane mode OFF
-#   5. Enable mobile data
-#   6. Start the hotspot again
+# Fast, fixed-timing network reset — finishes in ~10 seconds.
+# No polling/waiting for confirmation at each step; just a fixed
+# schedule of sleeps between commands:
+#   t=1s  : disable mobile data
+#   t=2s  : stop hotspot
+#   t=3s  : airplane mode ON
+#   t=6s  : airplane mode OFF   (3s in airplane mode)
+#   t=9s  : re-enable mobile data
+#   t=10s : start hotspot again
 #
-# Every wait below polls an actual condition instead of a fixed
-# `sleep`, same philosophy as autostart-network.sh.
+# This trades the previous adaptive-polling approach (which could
+# take up to ~45s waiting for confirmations) for a short, fixed
+# schedule. If your device's radio needs more time than this to
+# actually reconnect, the hotspot will still start on schedule —
+# actual internet may take a few extra seconds to catch up in the
+# background, which is normal and not something this script blocks on.
 # ============================================================
 
 DIR="$(dirname "$0")"
@@ -24,63 +28,37 @@ LOG=/data/local/tmp/network-reset.log
 # shellcheck source=/dev/null
 . "$CONFIG"
 
-wait_for() {
-    # $1 = description (for the log)
-    # $2 = shell condition to eval; loops until it's true
-    # $3 = retry limit (default 10 => up to 10s, polling every 1s)
-    desc="$1"
-    cond="$2"
-    limit="${3:-10}"
-    i=0
-    while ! eval "$cond"; do
-        sleep 1
-        i=$((i + 1))
-        if [ "$i" -ge "$limit" ]; then
-            echo "   WARNING: '$desc' not confirmed after ${limit}s — proceeding anyway"
-            return 1
-        fi
-    done
-    return 0
-}
-
 {
-    echo "1. reset start: $(date)"
-    "$NOTIFY" "Reset Jaringan" "Sedang reset jaringan, mohon tunggu..." 2>/dev/null
+    echo "reset start: $(date)"
+    "$NOTIFY" "Reset Jaringan" "Sedang reset jaringan (~10 detik)..." 2>/dev/null &
 
-    /system/bin/cmd wifi stop-softap
-    echo "2. hotspot stopped: $(date)"
-
+    sleep 1
     /system/bin/svc data disable
-    echo "3. mobile data disabled: $(date)"
+    echo "t=1s: mobile data disabled"
 
+    sleep 1
+    /system/bin/cmd wifi stop-softap
+    echo "t=2s: hotspot stopped"
+
+    sleep 1
     settings put global airplane_mode_on 1
     am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true > /dev/null 2>&1
-    wait_for "airplane mode on" '[ "$(settings get global airplane_mode_on)" = "1" ]'
-    echo "4. airplane mode ON confirmed: $(date)"
+    echo "t=3s: airplane mode ON"
 
+    sleep 3
     settings put global airplane_mode_on 0
     am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false > /dev/null 2>&1
-    wait_for "airplane mode off" '[ "$(settings get global airplane_mode_on)" = "0" ]'
-    echo "5. airplane mode OFF confirmed: $(date)"
+    echo "t=6s: airplane mode OFF"
 
-    # Give the modem a brief moment to start re-registering. We
-    # don't hard-block waiting for full READY here — `svc data
-    # enable` below just sets the user preference, and Android's
-    # own connectivity stack keeps retrying registration in the
-    # background regardless of whether we see READY yet.
-    wait_for "sim/radio back up" '
-        state="$(getprop gsm.sim.state)"
-        [ "$state" = "LOADED" ] || [ "$state" = "READY" ]
-    ' 15
-    echo "6. radio state: $(getprop gsm.sim.state) - $(date)"
-
+    sleep 3
     /system/bin/svc data enable
-    echo "7. mobile data re-enabled: $(date)"
+    echo "t=9s: mobile data re-enabled"
 
-    wait_for "wifi service" '/system/bin/service check wifi | grep -q found'
+    sleep 1
     /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
-    echo "8. hotspot restarted: $(date)"
+    echo "t=10s: hotspot restarted"
 
-    "$NOTIFY" "Reset Jaringan Selesai" "$SSID sudah nyala lagi setelah reset jaringan penuh." 2>/dev/null
+    "$NOTIFY" "Reset Jaringan Selesai" "$SSID sudah nyala lagi." 2>/dev/null &
 
+    echo "reset done: $(date)"
 } >> "$LOG" 2>&1
