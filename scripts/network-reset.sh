@@ -27,16 +27,16 @@ LOG=/data/local/tmp/network-reset.log
 wait_for() {
     # $1 = description (for the log)
     # $2 = shell condition to eval; loops until it's true
-    # $3 = retry limit (default 15 => up to 30s)
+    # $3 = retry limit (default 10 => up to 10s, polling every 1s)
     desc="$1"
     cond="$2"
-    limit="${3:-15}"
+    limit="${3:-10}"
     i=0
     while ! eval "$cond"; do
-        sleep 2
+        sleep 1
         i=$((i + 1))
         if [ "$i" -ge "$limit" ]; then
-            echo "   WARNING: '$desc' not confirmed after $((limit * 2))s — proceeding anyway"
+            echo "   WARNING: '$desc' not confirmed after ${limit}s — proceeding anyway"
             return 1
         fi
     done
@@ -63,12 +63,15 @@ wait_for() {
     wait_for "airplane mode off" '[ "$(settings get global airplane_mode_on)" = "0" ]'
     echo "5. airplane mode OFF confirmed: $(date)"
 
-    # Give the modem a moment to come back and re-register the SIM
-    # before touching data/hotspot again.
+    # Give the modem a brief moment to start re-registering. We
+    # don't hard-block waiting for full READY here — `svc data
+    # enable` below just sets the user preference, and Android's
+    # own connectivity stack keeps retrying registration in the
+    # background regardless of whether we see READY yet.
     wait_for "sim/radio back up" '
         state="$(getprop gsm.sim.state)"
         [ "$state" = "LOADED" ] || [ "$state" = "READY" ]
-    ' 30
+    ' 15
     echo "6. radio state: $(getprop gsm.sim.state) - $(date)"
 
     /system/bin/svc data enable
