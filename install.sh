@@ -22,12 +22,14 @@ SRC_NOTIFY="$SCRIPT_DIR/scripts/notify-status.sh"
 SRC_RESET="$SCRIPT_DIR/scripts/network-reset.sh"
 SRC_WATCHDOG="$SCRIPT_DIR/scripts/hotspot-watchdog.sh"
 SRC_SCHEDULER="$SCRIPT_DIR/scripts/hotspot-scheduler.sh"
+SRC_CONN_WATCHDOG="$SCRIPT_DIR/scripts/connectivity-watchdog.sh"
 DEST_DIR="/data/adb/service.d"
 DEST_MAIN="$DEST_DIR/autostart-network.sh"
 DEST_NOTIFY="$DEST_DIR/notify-status.sh"
 DEST_RESET="$DEST_DIR/network-reset.sh"
 DEST_WATCHDOG="$DEST_DIR/hotspot-watchdog.sh"
 DEST_SCHEDULER="$DEST_DIR/hotspot-scheduler.sh"
+DEST_CONN_WATCHDOG="$DEST_DIR/connectivity-watchdog.sh"
 DEST_CONFIG="$DEST_DIR/hotspot-config.sh"
 
 if [ ! -f "$SRC_MAIN" ]; then
@@ -44,6 +46,7 @@ if su -c "[ -f $DEST_CONFIG ]" 2>/dev/null; then
     WATCHDOG_ENABLED=0
     OFF_HOUR=""
     ON_HOUR=""
+    CONN_WATCHDOG_ENABLED=0
     # shellcheck source=/dev/null
     . "$CONFIG_TMP"
     rm -f "$CONFIG_TMP"
@@ -56,6 +59,7 @@ else
     WATCHDOG_ENABLED=0
     OFF_HOUR=""
     ON_HOUR=""
+    CONN_WATCHDOG_ENABLED=0
 fi
 
 echo
@@ -79,6 +83,7 @@ CONFIG_TMP="$(mktemp)"
         echo "OFF_HOUR=$OFF_HOUR"
         echo "ON_HOUR=$ON_HOUR"
     fi
+    echo "CONN_WATCHDOG_ENABLED=$CONN_WATCHDOG_ENABLED"
 } > "$CONFIG_TMP"
 cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
 rm -f "$CONFIG_TMP"
@@ -104,6 +109,11 @@ if [ -n "$OFF_HOUR" ] && [ -n "$ON_HOUR" ] && [ -f "$SRC_SCHEDULER" ]; then
     cat "$SRC_SCHEDULER" | su -c "cat > $DEST_SCHEDULER"
     su -c "chmod 700 $DEST_SCHEDULER"
     echo "[*] Jadwal dipasang ulang (mati $OFF_HOUR:00, nyala $ON_HOUR:00)."
+fi
+if [ "$CONN_WATCHDOG_ENABLED" = "1" ] && [ -f "$SRC_CONN_WATCHDOG" ]; then
+    cat "$SRC_CONN_WATCHDOG" | su -c "cat > $DEST_CONN_WATCHDOG"
+    su -c "chmod 700 $DEST_CONN_WATCHDOG"
+    echo "[*] Auto-Reset Internet dipasang ulang (sebelumnya aktif)."
 fi
 
 echo

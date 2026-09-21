@@ -15,16 +15,19 @@ DEST_NOTIFY="$DEST_DIR/notify-status.sh"
 DEST_RESET="$DEST_DIR/network-reset.sh"
 DEST_WATCHDOG="$DEST_DIR/hotspot-watchdog.sh"
 DEST_SCHEDULER="$DEST_DIR/hotspot-scheduler.sh"
+DEST_CONN_WATCHDOG="$DEST_DIR/connectivity-watchdog.sh"
 DEST_CONFIG="$DEST_DIR/hotspot-config.sh"
 SRC_MAIN="$SCRIPT_DIR/scripts/autostart-network.sh"
 SRC_NOTIFY="$SCRIPT_DIR/scripts/notify-status.sh"
 SRC_RESET="$SCRIPT_DIR/scripts/network-reset.sh"
 SRC_WATCHDOG="$SCRIPT_DIR/scripts/hotspot-watchdog.sh"
 SRC_SCHEDULER="$SCRIPT_DIR/scripts/hotspot-scheduler.sh"
+SRC_CONN_WATCHDOG="$SCRIPT_DIR/scripts/connectivity-watchdog.sh"
 LOG=/data/local/tmp/autostart-network.log
 WATCHDOG_LOG=/data/local/tmp/hotspot-watchdog.log
 SCHEDULER_LOG=/data/local/tmp/hotspot-scheduler.log
 RESET_LOG=/data/local/tmp/network-reset.log
+CONN_WATCHDOG_LOG=/data/local/tmp/connectivity-watchdog.log
 
 # --- single-keypress read helper ---
 press_key() {
@@ -49,6 +52,7 @@ config_exists() {
 load_config() {
     SSID=""; PASSWORD=""; SECURITY="wpa2"; WATCHDOG_ENABLED=0; OFF_HOUR=""; ON_HOUR=""
     RESET_LISTENER_ENABLED=0; RESET_LISTENER_PORT=8091; RESET_LISTENER_TOKEN=""
+    CONN_WATCHDOG_ENABLED=0
     if config_exists; then
         CONFIG_TMP="$(mktemp)"
         su -c "cat $DEST_CONFIG" > "$CONFIG_TMP"
@@ -72,6 +76,7 @@ save_config() {
         echo "RESET_LISTENER_ENABLED=$RESET_LISTENER_ENABLED"
         echo "RESET_LISTENER_PORT=$RESET_LISTENER_PORT"
         [ -n "$RESET_LISTENER_TOKEN" ] && echo "RESET_LISTENER_TOKEN=$RESET_LISTENER_TOKEN"
+        echo "CONN_WATCHDOG_ENABLED=$CONN_WATCHDOG_ENABLED"
     } > "$CONFIG_TMP"
     su -c "mkdir -p $DEST_DIR"
     cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
@@ -111,6 +116,20 @@ apply_schedule() {
     fi
 }
 
+apply_conn_watchdog() {
+    # Installs or removes connectivity-watchdog.sh to match
+    # CONN_WATCHDOG_ENABLED, but only if autostart is currently on.
+    if ! is_autostart_on; then
+        return
+    fi
+    if [ "$CONN_WATCHDOG_ENABLED" = "1" ] && [ -f "$SRC_CONN_WATCHDOG" ]; then
+        cat "$SRC_CONN_WATCHDOG" | su -c "cat > $DEST_CONN_WATCHDOG"
+        su -c "chmod 700 $DEST_CONN_WATCHDOG"
+    else
+        su -c "rm -f $DEST_CONN_WATCHDOG" 2>/dev/null
+    fi
+}
+
 turn_on() {
     if ! config_exists; then
         echo "Belum ada SSID/password tersimpan. Isi dulu:"
@@ -121,6 +140,7 @@ turn_on() {
         WATCHDOG_ENABLED=0
         OFF_HOUR=""
         ON_HOUR=""
+        CONN_WATCHDOG_ENABLED=0
         save_config
     fi
     su -c "mkdir -p $DEST_DIR"
@@ -132,11 +152,12 @@ turn_on() {
     su -c "chmod 700 $DEST_RESET"
     apply_watchdog
     apply_schedule
+    apply_conn_watchdog
     echo "[*] Autostart Hotspot: AKTIF. Reboot agar berlaku (su -c /system/bin/reboot)."
 }
 
 turn_off() {
-    su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER" 2>/dev/null
+    su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONN_WATCHDOG" 2>/dev/null
     echo "[*] Autostart Hotspot: MATI. SSID/password/pengaturan tetap tersimpan."
 }
 
@@ -212,6 +233,11 @@ settings_menu() {
         else
             echo "Remote Reset Listener : nonaktif"
         fi
+        if [ "$CONN_WATCHDOG_ENABLED" = "1" ]; then
+            echo "Auto-Reset Internet   : AKTIF"
+        else
+            echo "Auto-Reset Internet   : nonaktif"
+        fi
         echo
         echo "[1] Ganti SSID"
         echo "[2] Ganti Password"
@@ -220,6 +246,7 @@ settings_menu() {
         echo "[5] Atur Jadwal Off/On"
         echo "[6] Nonaktifkan Jadwal"
         echo "[7] Toggle Remote Reset Listener (trigger dari HP lain)"
+        echo "[8] Toggle Auto-Reset kalau Internet Mati"
         echo "[0] Kembali"
         press_key "Pilih: "
 
@@ -287,6 +314,26 @@ settings_menu() {
                 toggle_reset_listener
                 pause
                 ;;
+            7)
+                toggle_reset_listener
+                pause
+                ;;
+            8)
+                if [ "$CONN_WATCHDOG_ENABLED" = "1" ]; then
+                    CONN_WATCHDOG_ENABLED=0
+                else
+                    CONN_WATCHDOG_ENABLED=1
+                fi
+                save_config
+                apply_conn_watchdog
+                if is_autostart_on; then
+                    echo "[*] Auto-Reset Internet diperbarui dan langsung diterapkan."
+                    [ "$CONN_WATCHDOG_ENABLED" = "1" ] && echo "    Cek tiap 20 detik, reset otomatis kalau internet mati 3x cek berturut-turut (~1 menit)."
+                else
+                    echo "[*] Disimpan, akan aktif begitu Autostart dinyalakan."
+                fi
+                pause
+                ;;
             0)
                 return
                 ;;
@@ -307,11 +354,11 @@ do_uninstall() {
         pause
         return
     fi
-    su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONFIG" 2>/dev/null
+    su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONN_WATCHDOG $DEST_CONFIG" 2>/dev/null
     stop_listener
     press_key "Hapus juga log lama? (y/n): "
     if [ "$KEY" = "y" ] || [ "$KEY" = "Y" ]; then
-        su -c "rm -f $LOG $WATCHDOG_LOG $SCHEDULER_LOG $RESET_LOG" 2>/dev/null
+        su -c "rm -f $LOG $WATCHDOG_LOG $SCHEDULER_LOG $RESET_LOG $CONN_WATCHDOG_LOG" 2>/dev/null
         rm -f "$HOME/reset-listener.log" 2>/dev/null
     fi
     echo "[*] Selesai. Semua pengaturan sudah direset seperti awal."

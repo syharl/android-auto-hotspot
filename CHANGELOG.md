@@ -2,21 +2,18 @@
 
 ## Unreleased
 ### Added
-- **Control panel**, `menu.sh` — single-keypress interactive menu (no Enter needed to navigate) with three main options: Toggle Autostart Hotspot on/off, Pengaturan (change SSID/password/security, toggle watchdog, set/clear schedule — all applied immediately), and Uninstall (full reset). Replaces the earlier flat settings menu.
+- **Control panel**, `menu.sh` — single-keypress interactive menu (no Enter needed to navigate). Main options: Toggle Autostart Hotspot, Pengaturan, **Reset Jaringan (sekarang)**, **Reboot x3nfc**, and Uninstall (full reset). Replaces the earlier flat settings menu.
 - **Remote reset listener** — trigger the full "Reset Jaringan" sequence from another phone (e.g. F6) connected to x3nfc's hotspot, via a simple token-protected URL, without unlocking or touching x3nfc at all. Runs as a normal Termux process via Termux:Boot (no root needed except the final trigger). Toggle via `menu.sh` → Pengaturan → option 7. (`scripts/reset-listener.sh`, `scripts/reset-handler.sh`, requires `pkg install nmap`)
+- **Auto-reset on internet loss** — pings `8.8.8.8` every 20s; after 3 consecutive failures (~1 min), automatically runs the full network reset with no interaction needed at all. Handles the case where the hotspot itself stays connected but mobile data silently stops passing traffic. Toggle via `menu.sh` → Pengaturan → option 8. (`scripts/connectivity-watchdog.sh`)
 
 ### Changed
-- `install.sh` now detects an existing `hotspot-config.sh` and reuses it automatically — SSID/password are only asked on a true first install. Re-running it also restores the watchdog/schedule if they were previously enabled.
-- Turning autostart **off** via the menu keeps SSID/password/watchdog/schedule preferences saved, so turning it back **on** doesn't require re-entering anything.
-
-### Changed
-- `menu.sh` main menu restructured to 5 items: Toggle Autostart, Pengaturan, **Reset Jaringan (sekarang)**, **Reboot x3nfc**, and Uninstall — putting the two most common quick actions directly on the main screen instead of buried in submenus or only reachable via the notification.
+- `install.sh` now detects an existing `hotspot-config.sh` and reuses it automatically — SSID/password are only asked on a true first install. Re-running it also restores the watchdog/schedule/auto-reset if they were previously enabled.
+- Turning autostart **off** via the menu keeps SSID/password/watchdog/schedule/auto-reset preferences saved, so turning it back **on** doesn't require re-entering anything.
+- Notification button changed from a simple hotspot restart to a full **"Reset Jaringan"**: stop hotspot → disable data → airplane mode on → airplane mode off → re-enable data → restart hotspot. Every wait step polls actual system state instead of a fixed `sleep`. (`scripts/network-reset.sh`, replaces `scripts/restart-hotspot.sh`)
+- `network-reset.sh` sped up significantly: polling interval reduced from 2s to 1s and retry limits tightened (worst case dropped from ~150s to ~45s; typical case well under 20s) — most of the wait conditions resolve almost instantly and no longer need to be waited for as cautiously.
 
 ### Fixed
 - Reboot instructions in README/install.sh corrected to `su -c /system/bin/reboot` — plain `su -c reboot` fails since Termux's `$PATH` doesn't include Android's `reboot` binary.
-
-### Changed
-- Notification button changed from a simple hotspot restart to a full **"Reset Jaringan"**: stop hotspot → disable data → airplane mode on → airplane mode off → re-enable data → restart hotspot. Every wait step polls actual system state (airplane mode setting, SIM/radio readiness, wifi service) instead of a fixed `sleep`. (`scripts/network-reset.sh`, replaces `scripts/restart-hotspot.sh`)
 
 ### Planned next
 - Multi-SSID / dual-band (2.4GHz + 5GHz) softAp support

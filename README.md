@@ -175,6 +175,17 @@ This only works while F6 is actually associated with x3nfc's hotspot Wi-Fi (whic
 
 **Security note:** the token is a shared secret in the URL — anyone connected to your hotspot who guesses/sees it could trigger a reset too. Since the hotspot itself already needs a password to join, this is a reasonable second layer, not a strong one — don't share the URL outside people you trust with hotspot access.
 
+## Optional: auto-reset when internet dies
+
+Different from the idle-timeout watchdog above — this one checks **actual internet reachability**, not just whether the hotspot radio is on. Fixes the case where the hotspot stays connected but mobile data silently stops passing traffic (a flaky-signal issue) — no notification tap, no browser URL, nothing needed from you at all.
+
+Enable via `bash menu.sh` → **[2] Pengaturan** → **[8] Toggle Auto-Reset kalau Internet Mati**. Once on, `scripts/connectivity-watchdog.sh` runs in the background and:
+- Pings `8.8.8.8` every 20 seconds.
+- If 3 checks in a row fail (~1 minute of confirmed downtime), it automatically runs the full **Reset Jaringan** sequence — same as the notification button.
+- After an auto-reset, it waits 3 minutes before resuming checks, so a longer outage doesn't trigger repeated resets back-to-back.
+
+Logs: `su -c 'cat /data/local/tmp/connectivity-watchdog.log'`.
+
 ## Uninstalling
 
 Easiest: `bash menu.sh` → **[5] Uninstall**.
