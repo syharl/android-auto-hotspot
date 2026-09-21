@@ -10,7 +10,7 @@
 - `install.sh` now detects an existing `hotspot-config.sh` and reuses it automatically — SSID/password are only asked on a true first install. Re-running it also restores the watchdog/schedule/auto-reset if they were previously enabled.
 - Turning autostart **off** via the menu keeps SSID/password/watchdog/schedule/auto-reset preferences saved, so turning it back **on** doesn't require re-entering anything.
 - Notification button changed from a simple hotspot restart to a full **"Reset Jaringan"**: stop hotspot → disable data → airplane mode on → airplane mode off → re-enable data → restart hotspot. Every wait step polls actual system state instead of a fixed `sleep`. (`scripts/network-reset.sh`, replaces `scripts/restart-hotspot.sh`)
-- `network-reset.sh` sped up significantly: polling interval reduced from 2s to 1s and retry limits tightened (worst case dropped from ~150s to ~45s; typical case well under 20s) — most of the wait conditions resolve almost instantly and no longer need to be waited for as cautiously.
+- `network-reset.sh` rewritten to a **fixed 10-second schedule** instead of adaptive polling — disable data (t=1s) → stop hotspot (t=2s) → airplane mode on (t=3s) → airplane mode off (t=6s) → re-enable data (t=8s) → restart hotspot (t=10s). Much faster and predictable than the previous polling approach, at the cost of not confirming each step actually completed before moving on.
 
 ### Fixed
 - Reboot instructions in README/install.sh corrected to `su -c /system/bin/reboot` — plain `su -c reboot` fails since Termux's `$PATH` doesn't include Android's `reboot` binary.

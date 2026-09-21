@@ -141,7 +141,7 @@ Each notification includes a **Reset Jaringan** button that does a full network 
 5. Re-enable mobile data
 6. Restart the hotspot
 
-Every wait in between polls the actual system state (airplane mode setting, SIM/radio readiness, wifi service) instead of a fixed delay — same approach as the boot script. Useful when the hotspot or data connection is stuck in a weird state and a plain restart isn't enough. Logs go to `su -c 'cat /data/local/tmp/network-reset.log'`.
+Runs on a fixed 10-second schedule (disable data → stop hotspot → airplane mode on → airplane mode off → re-enable data → restart hotspot), rather than waiting to confirm each step — much faster than the previous polling-based version, though it doesn't double-check that each step actually finished before moving to the next. Useful when the hotspot or data connection is stuck in a weird state and a plain restart isn't enough. Logs go to `su -c 'cat /data/local/tmp/network-reset.log'`.
 
 If Termux:API isn't installed, `scripts/notify-status.sh` detects that and exits quietly — nothing breaks, you just won't get notifications.
 
