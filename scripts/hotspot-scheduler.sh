@@ -19,6 +19,14 @@ CHECK_INTERVAL=60   # seconds
 [ -z "$OFF_HOUR" ] && exit 0
 [ -z "$ON_HOUR" ] && exit 0
 
+start_hotspot() {
+    if [ -n "$BAND" ]; then
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD" -b "$BAND"
+    else
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+    fi
+}
+
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
 done
@@ -41,7 +49,7 @@ sleep 40   # let autostart-network.sh finish first
 
         if [ "$hour" = "$ON_HOUR" ] && [ "$last_action" != "on-$hour" ]; then
             echo "$(date): scheduled ON"
-            /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+            start_hotspot
             "$DIR/notify-status.sh" "Hotspot Terjadwal" "Hotspot dinyalakan sesuai jadwal (jam $ON_HOUR)." 2>/dev/null
             last_action="on-$hour"
         fi

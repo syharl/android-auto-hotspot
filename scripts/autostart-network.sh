@@ -21,6 +21,14 @@ fi
 # shellcheck source=/dev/null
 . "$CONFIG"
 
+start_hotspot() {
+    if [ -n "$BAND" ]; then
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD" -b "$BAND"
+    else
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+    fi
+}
+
 wait_for_service() {
     # $1 = service name (e.g. "phone", "wifi")
     svc_name="$1"
@@ -54,8 +62,8 @@ wait_for_service() {
     echo "5. wifi service: $(/system/bin/service check wifi) - $(date)"
 
     sleep 5
-    /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
-    echo "6. hotspot command sent: $(date)"
+    start_hotspot
+    echo "6. hotspot command sent (band: ${BAND:-default 2.4GHz}): $(date)"
 
     "$DIR/notify-status.sh" "Hotspot Aktif" "$SSID sudah nyala otomatis setelah boot." 2>/dev/null
 

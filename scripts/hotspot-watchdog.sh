@@ -32,6 +32,14 @@ fi
 # shellcheck source=/dev/null
 . "$CONFIG"
 
+start_hotspot() {
+    if [ -n "$BAND" ]; then
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD" -b "$BAND"
+    else
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+    fi
+}
+
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
 done
@@ -55,7 +63,7 @@ sleep 40
                 echo "$(date): idle auto-shutoff detected, restarting hotspot"
                 echo "  matched log line: $reason"
                 sleep 3
-                /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+                start_hotspot
                 "$DIR/notify-status.sh" "Hotspot Auto-Restart" "$SSID mati sendiri (idle timeout), sudah dinyalakan ulang otomatis." 2>/dev/null
             else
                 echo "$(date): hotspot turned off, no idle-timeout signature in recent logs — assuming manual, not restarting"

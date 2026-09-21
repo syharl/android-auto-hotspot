@@ -28,6 +28,14 @@ LOG=/data/local/tmp/network-reset.log
 # shellcheck source=/dev/null
 . "$CONFIG"
 
+start_hotspot() {
+    if [ -n "$BAND" ]; then
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD" -b "$BAND"
+    else
+        /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
+    fi
+}
+
 {
     echo "reset start: $(date)"
     "$NOTIFY" "Reset Jaringan" "Sedang reset jaringan (~10 detik)..." 2>/dev/null &
@@ -55,8 +63,8 @@ LOG=/data/local/tmp/network-reset.log
     echo "t=9s: mobile data re-enabled"
 
     sleep 1
-    /system/bin/cmd wifi start-softap "$SSID" "$SECURITY" "$PASSWORD"
-    echo "t=10s: hotspot restarted"
+    start_hotspot
+    echo "t=10s: hotspot restarted (band: ${BAND:-default 2.4GHz})"
 
     "$NOTIFY" "Reset Jaringan Selesai" "$SSID sudah nyala lagi." 2>/dev/null &
 
