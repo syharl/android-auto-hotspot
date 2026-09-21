@@ -186,6 +186,20 @@ Enable via `bash menu.sh` → **[2] Pengaturan** → **[8] Toggle Auto-Reset kal
 
 Logs: `su -c 'cat /data/local/tmp/connectivity-watchdog.log'`.
 
+## Optional: dual-band hotspot (2.4GHz + 5GHz)
+
+Android's shell interface supports starting the hotspot on a specific band, or — on supported hardware — a **bridged** AP that broadcasts the same SSID on both 2.4GHz and 5GHz simultaneously. This is not a way to run two different SSIDs at once; it's one SSID reachable on both bands.
+
+**Important:** this needs both a recent-enough Android version (roughly Android 12+) and a phone with two Wi-Fi radios that can run concurrently. Plenty of devices — especially mid-range/budget ones — don't support bridged mode at all, and passing an unsupported band option can make the hotspot fail to start.
+
+Change it via `bash menu.sh` → **[2] Pengaturan** → **[9] Ganti Band WiFi**. It first checks `cmd wifi get-softap-supported-features` and tells you whether your device looks like it supports bridged mode, then lets you pick:
+- **Default (2.4GHz only)** — the original behavior, safest, works everywhere.
+- **5GHz only** — faster, shorter range.
+- **Bridged (2.4GHz + 5GHz)** — needs hardware support.
+- **Any** — lets the system choose.
+
+If you pick bridged/5GHz and the hotspot doesn't come up afterward, go back into this menu and set it back to **Default** — there's no reboot needed to test, just tap **Reset Jaringan (sekarang)** from the main menu and check `su -c 'cat /data/local/tmp/network-reset.log'`.
+
 ## Uninstalling
 
 Easiest: `bash menu.sh` → **[5] Uninstall**.

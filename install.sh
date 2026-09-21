@@ -47,6 +47,7 @@ if su -c "[ -f $DEST_CONFIG ]" 2>/dev/null; then
     OFF_HOUR=""
     ON_HOUR=""
     CONN_WATCHDOG_ENABLED=0
+    BAND=""
     # shellcheck source=/dev/null
     . "$CONFIG_TMP"
     rm -f "$CONFIG_TMP"
@@ -60,6 +61,7 @@ else
     OFF_HOUR=""
     ON_HOUR=""
     CONN_WATCHDOG_ENABLED=0
+    BAND=""
 fi
 
 echo
@@ -84,6 +86,7 @@ CONFIG_TMP="$(mktemp)"
         echo "ON_HOUR=$ON_HOUR"
     fi
     echo "CONN_WATCHDOG_ENABLED=$CONN_WATCHDOG_ENABLED"
+    [ -n "$BAND" ] && echo "BAND=$BAND"
 } > "$CONFIG_TMP"
 cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
 rm -f "$CONFIG_TMP"

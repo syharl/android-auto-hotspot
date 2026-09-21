@@ -53,6 +53,7 @@ load_config() {
     SSID=""; PASSWORD=""; SECURITY="wpa2"; WATCHDOG_ENABLED=0; OFF_HOUR=""; ON_HOUR=""
     RESET_LISTENER_ENABLED=0; RESET_LISTENER_PORT=8091; RESET_LISTENER_TOKEN=""
     CONN_WATCHDOG_ENABLED=0
+    BAND=""
     if config_exists; then
         CONFIG_TMP="$(mktemp)"
         su -c "cat $DEST_CONFIG" > "$CONFIG_TMP"
@@ -77,6 +78,7 @@ save_config() {
         echo "RESET_LISTENER_PORT=$RESET_LISTENER_PORT"
         [ -n "$RESET_LISTENER_TOKEN" ] && echo "RESET_LISTENER_TOKEN=$RESET_LISTENER_TOKEN"
         echo "CONN_WATCHDOG_ENABLED=$CONN_WATCHDOG_ENABLED"
+        [ -n "$BAND" ] && echo "BAND=$BAND"
     } > "$CONFIG_TMP"
     su -c "mkdir -p $DEST_DIR"
     cat "$CONFIG_TMP" | su -c "cat > $DEST_CONFIG"
@@ -238,6 +240,11 @@ settings_menu() {
         else
             echo "Auto-Reset Internet   : nonaktif"
         fi
+        if [ -n "$BAND" ]; then
+            echo "Band WiFi : $BAND"
+        else
+            echo "Band WiFi : default (2.4GHz)"
+        fi
         echo
         echo "[1] Ganti SSID"
         echo "[2] Ganti Password"
@@ -247,6 +254,7 @@ settings_menu() {
         echo "[6] Nonaktifkan Jadwal"
         echo "[7] Toggle Remote Reset Listener (trigger dari HP lain)"
         echo "[8] Toggle Auto-Reset kalau Internet Mati"
+        echo "[9] Ganti Band WiFi (2.4GHz/5GHz/Bridged)"
         echo "[0] Kembali"
         press_key "Pilih: "
 
@@ -327,6 +335,42 @@ settings_menu() {
                     [ "$CONN_WATCHDOG_ENABLED" = "1" ] && echo "    Cek tiap 20 detik, reset otomatis kalau internet mati 3x cek berturut-turut (~1 menit)."
                 else
                     echo "[*] Disimpan, akan aktif begitu Autostart dinyalakan."
+                fi
+                pause
+                ;;
+            9)
+                echo "Mengecek dukungan hardware..."
+                FEATURES="$(su -c 'cmd wifi get-softap-supported-features' 2>/dev/null)"
+                echo "$FEATURES"
+                if echo "$FEATURES" | grep -qi "bridged"; then
+                    echo "[*] Perangkat ini KELIHATANNYA mendukung mode bridged (2.4GHz+5GHz sekaligus)."
+                else
+                    echo "[!] Perangkat ini kemungkinan TIDAK mendukung mode bridged."
+                    echo "    Kalau tetap dipilih, hotspot bisa gagal nyala atau otomatis fallback ke satu band."
+                fi
+                echo
+                echo "  1) Default (2.4GHz saja) - paling kompatibel"
+                echo "  2) 5GHz saja - lebih cepat, jangkauan lebih pendek"
+                echo "  3) Bridged (2.4GHz + 5GHz sekaligus) - butuh dukungan hardware, Android 12+"
+                echo "  4) Any - biar sistem yang pilih otomatis"
+                echo "  0) Batal, jangan diubah"
+                read -p "Pilih (0-4): " BAND_CHOICE
+                case "$BAND_CHOICE" in
+                    1) BAND="" ;;
+                    2) BAND="5" ;;
+                    3) BAND="bridged" ;;
+                    4) BAND="any" ;;
+                    0) echo "Dibatalkan."; pause; continue ;;
+                    *) echo "Pilihan tidak dikenal, tidak diubah."; pause; continue ;;
+                esac
+                save_config
+                echo "[*] Band diperbarui: ${BAND:-default 2.4GHz}."
+                if is_autostart_on; then
+                    echo "    Tekan 'Reset Jaringan' (menu utama opsi 3) untuk langsung mencobanya,"
+                    echo "    lalu cek: su -c 'cat /data/local/tmp/network-reset.log'"
+                    echo "    Kalau hotspot malah gak nyala, balik ke opsi 1 (Default) di sini."
+                else
+                    echo "    Akan aktif begitu Autostart dinyalakan."
                 fi
                 pause
                 ;;
