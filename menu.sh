@@ -314,10 +314,6 @@ settings_menu() {
                 toggle_reset_listener
                 pause
                 ;;
-            7)
-                toggle_reset_listener
-                pause
-                ;;
             8)
                 if [ "$CONN_WATCHDOG_ENABLED" = "1" ]; then
                     CONN_WATCHDOG_ENABLED=0
@@ -372,9 +368,9 @@ do_reset_now() {
         return
     fi
     echo "[*] Menjalankan Reset Jaringan (stop hotspot -> data off -> pesawat on/off -> data on -> hotspot on)..."
-    echo "    Mohon tunggu, ini butuh waktu sekitar 1 menit..."
+    echo "    Mohon tunggu, ini butuh waktu sekitar 10 detik..."
     su -c "/system/bin/sh $DEST_RESET"
-    echo "[*] Reset selesai. Log: su -c 'cat /data/local/tmp/network-reset.log'"
+    echo "[*] Reset selesai. Log: su -c 'cat $RESET_LOG'"
     pause
 }
 
