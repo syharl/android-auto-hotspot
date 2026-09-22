@@ -43,14 +43,17 @@ sleep 40   # let autostart-network.sh finish first
         if [ "$hour" = "$OFF_HOUR" ] && [ "$last_action" != "off-$hour" ]; then
             echo "$(date): scheduled OFF"
             /system/bin/cmd wifi stop-softap
-            "$DIR/notify-status.sh" "Hotspot Terjadwal" "Hotspot dimatikan sesuai jadwal (jam $OFF_HOUR)." 2>/dev/null
+            /system/bin/svc data disable
+            "$DIR/notify-status.sh" "Hotspot Terjadwal" "Hotspot & data dimatikan sesuai jadwal (jam $OFF_HOUR)." 2>/dev/null
             last_action="off-$hour"
         fi
 
         if [ "$hour" = "$ON_HOUR" ] && [ "$last_action" != "on-$hour" ]; then
             echo "$(date): scheduled ON"
+            /system/bin/svc data enable
+            sleep 3
             start_hotspot
-            "$DIR/notify-status.sh" "Hotspot Terjadwal" "Hotspot dinyalakan sesuai jadwal (jam $ON_HOUR)." 2>/dev/null
+            "$DIR/notify-status.sh" "Hotspot Terjadwal" "Data & hotspot dinyalakan sesuai jadwal (jam $ON_HOUR)." 2>/dev/null
             last_action="on-$hour"
         fi
 

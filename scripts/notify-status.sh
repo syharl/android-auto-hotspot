@@ -2,7 +2,7 @@
 # ============================================================
 # notify-status.sh
 # Optional helper: sends an Android notification with a
-# "Restart Hotspot" button, via Termux:API.
+# "Reset Jaringan" button, via Termux:API.
 #
 # Requires (on the phone):
 #   - Termux:API app installed (separate from Termux itself)

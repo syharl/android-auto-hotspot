@@ -18,6 +18,11 @@
 #   logcat -d | grep -i softap
 # right after an idle auto-shutoff to find the real message,
 # then adjust the grep pattern below.
+#
+# If a daily schedule (OFF_HOUR/ON_HOUR) is also active, this
+# watchdog pauses itself during the scheduled-off window, in case
+# the log-matching heuristic ever false-positives on a deliberate
+# stop and tries to restart the hotspot when it's meant to stay off.
 # ============================================================
 
 DIR="$(dirname "$0")"
@@ -40,6 +45,18 @@ start_hotspot() {
     fi
 }
 
+in_scheduled_off_window() {
+    [ -z "$OFF_HOUR" ] && return 1
+    [ -z "$ON_HOUR" ] && return 1
+    hour="$(date +%H | sed 's/^0//')"
+    [ -z "$hour" ] && hour=0
+    if [ "$OFF_HOUR" -lt "$ON_HOUR" ]; then
+        [ "$hour" -ge "$OFF_HOUR" ] && [ "$hour" -lt "$ON_HOUR" ]
+    else
+        [ "$hour" -ge "$OFF_HOUR" ] || [ "$hour" -lt "$ON_HOUR" ]
+    fi
+}
+
 while [ "$(getprop sys.boot_completed)" != "1" ]; do
     sleep 2
 done
@@ -56,6 +73,11 @@ sleep 40
         state="$(dumpsys wifi 2>/dev/null | grep -i "Wifi AP state" | head -n1)"
         is_on=0
         echo "$state" | grep -qi "enabled" && is_on=1
+
+        if in_scheduled_off_window; then
+            was_on="$is_on"
+            continue
+        fi
 
         if [ "$was_on" = "1" ] && [ "$is_on" = "0" ]; then
             reason="$(logcat -d -t 400 2>/dev/null | grep -iE "softap|wifiap" | grep -iE "timeout|idle" | tail -n1)"
