@@ -148,8 +148,8 @@ If Termux:API isn't installed, `scripts/notify-status.sh` detects that and exits
 ## Optional: scheduled off/on
 
 If you set a schedule via `bash menu.sh` → **[2] Pengaturan** → **[5] Atur Jadwal Off/On**, `scripts/hotspot-scheduler.sh` runs in the background and:
-- Turns the hotspot **off** at your chosen hour (24h format) every day.
-- Turns it back **on** at your chosen hour.
+- Turns the hotspot **and mobile data off** at your chosen hour (24h format) every day.
+- Turns **mobile data back on first, then the hotspot** at your chosen hour — data gets a 3-second head start so the hotspot isn't started with nothing behind it.
 
 Useful if this phone runs as a home server 24/7 but you don't need the hotspot overnight. Run `bash menu.sh` any time to change the hours or clear the schedule. Logs go to `su -c 'cat /data/local/tmp/hotspot-scheduler.log'`.
 
@@ -182,7 +182,9 @@ Different from the idle-timeout watchdog above — this one checks **actual inte
 Enable via `bash menu.sh` → **[2] Pengaturan** → **[8] Toggle Auto-Reset kalau Internet Mati**. Once on, `scripts/connectivity-watchdog.sh` runs in the background and:
 - Pings `8.8.8.8` every 20 seconds.
 - If 3 checks in a row fail (~1 minute of confirmed downtime), it automatically runs the full **Reset Jaringan** sequence — same as the notification button.
-- After an auto-reset, it waits 3 minutes before resuming checks, so a longer outage doesn't trigger repeated resets back-to-back.
+- After the first auto-reset in a streak, it waits **3 minutes** before resuming checks. If internet is still down and it has to reset again, every reset after that waits **10 minutes** instead — retrying every 3 minutes is pointless if the problem is upstream (a real outage) rather than something a local reset can fix. The cooldown drops back to 3 minutes again once internet is confirmed working.
+
+If you also have a [schedule](#optional-scheduled-offon) set up, this watchdog automatically pauses itself during the scheduled-off window — otherwise it would treat the deliberate off period as an outage and turn everything back on within a minute.
 
 Logs: `su -c 'cat /data/local/tmp/connectivity-watchdog.log'`.
 

@@ -31,6 +31,9 @@ fi
 for f in $TARGETS; do
     su -c "rm -f $f"
 done
+su -c "pkill -f hotspot-watchdog.sh" 2>/dev/null || true
+su -c "pkill -f hotspot-scheduler.sh" 2>/dev/null || true
+su -c "pkill -f connectivity-watchdog.sh" 2>/dev/null || true
 pkill -f "reset-listener.sh" 2>/dev/null || true
 rm -f "$HOME/.termux/boot/reset-listener.sh" 2>/dev/null
 echo "[*] Removed installed scripts and config."

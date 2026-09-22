@@ -90,6 +90,16 @@ is_autostart_on() {
     su -c "[ -f $DEST_MAIN ]" 2>/dev/null
 }
 
+kill_bg_script() {
+    # $1 = script basename. Deleting the file doesn't stop an
+    # already-running background loop (hotspot-watchdog.sh,
+    # hotspot-scheduler.sh, connectivity-watchdog.sh all loop
+    # forever once started at boot) — it keeps running from memory
+    # until killed or the device reboots. Kill it explicitly so
+    # disabling a feature actually takes effect immediately.
+    su -c "pkill -f $1" 2>/dev/null
+}
+
 apply_watchdog() {
     # Installs or removes hotspot-watchdog.sh to match WATCHDOG_ENABLED,
     # but only if autostart itself is currently on.
@@ -101,6 +111,7 @@ apply_watchdog() {
         su -c "chmod 700 $DEST_WATCHDOG"
     else
         su -c "rm -f $DEST_WATCHDOG" 2>/dev/null
+        kill_bg_script "hotspot-watchdog.sh"
     fi
 }
 
@@ -115,6 +126,7 @@ apply_schedule() {
         su -c "chmod 700 $DEST_SCHEDULER"
     else
         su -c "rm -f $DEST_SCHEDULER" 2>/dev/null
+        kill_bg_script "hotspot-scheduler.sh"
     fi
 }
 
@@ -129,6 +141,7 @@ apply_conn_watchdog() {
         su -c "chmod 700 $DEST_CONN_WATCHDOG"
     else
         su -c "rm -f $DEST_CONN_WATCHDOG" 2>/dev/null
+        kill_bg_script "connectivity-watchdog.sh"
     fi
 }
 
@@ -160,6 +173,9 @@ turn_on() {
 
 turn_off() {
     su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONN_WATCHDOG" 2>/dev/null
+    kill_bg_script "hotspot-watchdog.sh"
+    kill_bg_script "hotspot-scheduler.sh"
+    kill_bg_script "connectivity-watchdog.sh"
     echo "[*] Autostart Hotspot: MATI. SSID/password/pengaturan tetap tersimpan."
 }
 
@@ -220,13 +236,18 @@ settings_menu() {
         load_config
         clear 2>/dev/null
         echo "=== Pengaturan ==="
+        if is_autostart_on; then
+            AUTOSTART_NOTE=""
+        else
+            AUTOSTART_NOTE=" (tersimpan, BELUM jalan - Autostart lagi MATI)"
+        fi
         echo "SSID      : $SSID"
         echo "Password  : $(mask "$PASSWORD")"
         echo "Security  : $SECURITY"
-        [ "$WATCHDOG_ENABLED" = "1" ] && WSTAT="AKTIF" || WSTAT="nonaktif"
+        [ "$WATCHDOG_ENABLED" = "1" ] && WSTAT="AKTIF$AUTOSTART_NOTE" || WSTAT="nonaktif"
         echo "Watchdog  : $WSTAT"
         if [ -n "$OFF_HOUR" ] && [ -n "$ON_HOUR" ]; then
-            echo "Jadwal    : mati $OFF_HOUR:00, nyala $ON_HOUR:00"
+            echo "Jadwal    : mati $OFF_HOUR:00, nyala $ON_HOUR:00$AUTOSTART_NOTE"
         else
             echo "Jadwal    : nonaktif"
         fi
@@ -236,7 +257,7 @@ settings_menu() {
             echo "Remote Reset Listener : nonaktif"
         fi
         if [ "$CONN_WATCHDOG_ENABLED" = "1" ]; then
-            echo "Auto-Reset Internet   : AKTIF"
+            echo "Auto-Reset Internet   : AKTIF$AUTOSTART_NOTE"
         else
             echo "Auto-Reset Internet   : nonaktif"
         fi
@@ -395,6 +416,9 @@ do_uninstall() {
         return
     fi
     su -c "rm -f $DEST_MAIN $DEST_NOTIFY $DEST_RESET $DEST_WATCHDOG $DEST_SCHEDULER $DEST_CONN_WATCHDOG $DEST_CONFIG" 2>/dev/null
+    kill_bg_script "hotspot-watchdog.sh"
+    kill_bg_script "hotspot-scheduler.sh"
+    kill_bg_script "connectivity-watchdog.sh"
     stop_listener
     press_key "Hapus juga log lama? (y/n): "
     if [ "$KEY" = "y" ] || [ "$KEY" = "Y" ]; then

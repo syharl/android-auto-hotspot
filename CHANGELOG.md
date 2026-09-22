@@ -15,6 +15,11 @@
 
 ### Fixed
 - Reboot instructions in README/install.sh corrected to `su -c /system/bin/reboot` — plain `su -c reboot` fails since Termux's `$PATH` doesn't include Android's `reboot` binary.
+- `hotspot-scheduler.sh`'s scheduled **ON** action only restarted the hotspot and never re-enabled mobile data — if data had been disabled during the off window, the hotspot came back up with nothing behind it, and the connectivity watchdog would then trigger a pointless full reset every cooldown cycle since data was never the thing it fixed. OFF now also disables data; ON re-enables data first (3s head start) before starting the hotspot.
+- `connectivity-watchdog.sh` retried every 3 minutes forever, even when an outage was clearly not something a local reset could fix. Cooldown now escalates to 10 minutes after the first reset in a streak, dropping back to 3 minutes once internet is confirmed working again.
+- **Auto-Reset Internet vs Jadwal conflict**: if both were enabled, the connectivity watchdog would notice "no internet" during the schedule's deliberate off window and force everything back on within about a minute, defeating the schedule every night. Both watchdogs (`connectivity-watchdog.sh` and, defensively, `hotspot-watchdog.sh`) now pause themselves during the scheduled-off window.
+- **Toggling a feature off didn't actually stop it**: `hotspot-watchdog.sh`, `hotspot-scheduler.sh`, and `connectivity-watchdog.sh` all run as infinite background loops once started at boot — deleting their script file (what disabling them used to do) doesn't kill an already-running process, so a "disabled" watchdog kept running from memory until the next reboot. `menu.sh` and `uninstall.sh` now explicitly `pkill` these processes whenever they're disabled, turned off, or uninstalled, so it takes effect immediately.
+- Settings menu status lines (Watchdog, Jadwal, Auto-Reset Internet) could show "AKTIF" from a saved preference even while Autostart itself was off and nothing was actually running. Now shows a "(tersimpan, BELUM jalan)" note in that case.
 
 ### Planned next
 - Multi-SSID / dual-band (2.4GHz + 5GHz) softAp support
